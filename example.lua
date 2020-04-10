@@ -1,7 +1,7 @@
-local Passthru = include("lib/passthru")
+local Passthrough = include("lib/passthrough")
 
 function init()
-    Passthru.init()
+    Passthrough.init()
 end
 
 function redraw()
