@@ -14,6 +14,9 @@ and then add `Passthrough.init()` to your `init` function.
 
 Find Passthrough related parameters in the `Passthrough` group in the params menu.
 
+![paramsmenu](img/params1.png)
+![paramsmenu2](img/params2.png)
+
 ## Contributing
 
 PRs welcome
