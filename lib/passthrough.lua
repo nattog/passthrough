@@ -1,6 +1,6 @@
--- passthru
+-- passthrough
 --
--- library for the input passthru
+-- library for passing midi
 -- from device to an interface
 -- + clocking from interface
 --
@@ -9,7 +9,7 @@
 -- built with keystep in mind
 -- PRs welcome
 
-local Passthru = {}
+local Passthrough = {}
 
 local MusicUtil = require "musicutil"
 local devices = {}
@@ -21,7 +21,7 @@ local scale_names = {}
 local current_scale = {}
 local midi_notes = {}
 
-function Passthru.device_event(data)
+function Passthrough.device_event(data)
     local msg = midi.to_msg(data)
     local dev_channel_param = params:get("device_channel")
     local int_channel_param = params:get("interface_channel")
@@ -54,7 +54,7 @@ function Passthru.device_event(data)
     end
 end
 
-function Passthru.interface_event(data)
+function Passthrough.interface_event(data)
     if clock_device == false then
         return
     else
@@ -71,11 +71,11 @@ function Passthru.interface_event(data)
     end
 end
 
-function Passthru.build_scale()
+function Passthrough.build_scale()
     current_scale = MusicUtil.generate_scale_of_length(params:get("root_note"), params:get("scale_mode"), 128)
 end
 
-function Passthru.init()
+function Passthrough.init()
     for i = 1, #MusicUtil.SCALES do
         table.insert(scale_names, string.lower(MusicUtil.SCALES[i].name))
     end
@@ -91,7 +91,7 @@ function Passthru.init()
         devices[id] = device.name
     end
 
-    params:add_group("PASSTHRU", 8)
+    params:add_group("PASSTHROUGH", 8)
     params:add {
         type = "option",
         id = "midi_device",
@@ -100,7 +100,7 @@ function Passthru.init()
         action = function(value)
             midi_device.event = nil
             midi_device = midi.connect(value)
-            midi_device.event = Passthru.device_event
+            midi_device.event = Passthrough.device_event
         end
     }
 
@@ -112,7 +112,7 @@ function Passthru.init()
         action = function(value)
             midi_interface.event = nil
             midi_interface = midi.connect(value)
-            midi_interface.event = Passthru.interface_event
+            midi_interface.event = Passthrough.interface_event
         end
     }
 
@@ -144,7 +144,7 @@ function Passthru.init()
         options = {"no", "yes"},
         action = function(value)
             quantize_midi = value == 2
-            Passthru.build_scale()
+            Passthrough.build_scale()
         end
     }
 
@@ -155,7 +155,7 @@ function Passthru.init()
         options = scale_names,
         default = 5,
         action = function()
-            Passthru.build_scale()
+            Passthrough.build_scale()
         end
     }
 
@@ -170,9 +170,9 @@ function Passthru.init()
             return MusicUtil.note_num_to_name(param:get())
         end,
         action = function()
-            Passthru.build_scale()
+            Passthrough.build_scale()
         end
     }
 end
 
-return Passthru
+return Passthrough
