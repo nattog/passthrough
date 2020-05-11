@@ -8,7 +8,7 @@ Initially conceived as an easy way to pass midi information from the keystep con
 ## How to use
 
 Include passthrough at the top of your script
-`local Passthrough = include("lib/Passthrough")`
+`local Passthrough = include("lib/passthrough")`
 
 and then add `Passthrough.init()` to your `init` function.
 
