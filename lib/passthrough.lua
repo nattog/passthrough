@@ -124,7 +124,7 @@ function Passthrough.init()
         action = function(value)
             midi_interface.event = nil
             midi_interface = midi.connect(value)
-            midi_interface.event = Passthrough.device_event
+            midi_interface.event = Passthrough.interface_event
         end
     }
 
