@@ -3,10 +3,10 @@
 -- library for passing midi
 -- from device to an interface
 -- + clocking from interface
+-- + scale quantizing
 --
 -- for how to use see example
 --
--- built with keystep in mind
 -- PRs welcome
 
 local Passthrough = {}
@@ -78,6 +78,14 @@ function Passthrough.build_scale()
     current_scale = MusicUtil.generate_scale_of_length(params:get("root_note"), params:get("scale_mode"), 128)
 end
 
+function getAvailableMidi()
+    d = {}
+    for id, device in pairs(midi.vports) do
+        d[id] = device.name
+    end
+    return d
+end
+
 function Passthrough.init()
     for i = 1, #MusicUtil.SCALES do
         table.insert(scale_names, string.lower(MusicUtil.SCALES[i].name))
@@ -91,9 +99,7 @@ function Passthrough.init()
     midi_interface = midi.connect(2)
     midi_interface.event = Passthrough.interface_event
 
-    for id, device in pairs(midi.vports) do
-        devices[id] = device.name
-    end
+    devices = getAvailableMidi()
 
     params:add_group("PASSTHROUGH", 8)
     params:add {
@@ -126,7 +132,13 @@ function Passthrough.init()
     for i = 1, 16 do
         table.insert(channels, i)
     end
-    params:add {type = "option", id = "device_channel", name = "Device channel", options = channels, default = 1}
+    params:add {
+        type = "option",
+        id = "device_channel",
+        name = "Device channel",
+        options = channels,
+        default = 1
+    }
 
     params:add {type = "option", id = "interface_channel", name = "Interface channel", options = channels, default = 1}
 
