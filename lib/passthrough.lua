@@ -78,7 +78,7 @@ function Passthrough.build_scale()
     current_scale = MusicUtil.generate_scale_of_length(params:get("root_note"), params:get("scale_mode"), 128)
 end
 
-function getAvailableMidi()
+function Passthrough.get_midi_devices()
     d = {}
     for id, device in pairs(midi.vports) do
         d[id] = device.name
@@ -99,7 +99,7 @@ function Passthrough.init()
     midi_interface = midi.connect(2)
     midi_interface.event = Passthrough.interface_event
 
-    devices = getAvailableMidi()
+    devices = Passthrough.get_midi_devices()
 
     params:add_group("PASSTHROUGH", 8)
     params:add {
