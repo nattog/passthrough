@@ -12,6 +12,25 @@ Include passthrough at the top of your script
 
 and then add `Passthrough.init()` to your `init` function.
 
+```lua
+function init()
+    Passthrough.init()
+end
+```
+
+User event callbacks can also be added for specific routing.
+
+```lua
+function midi_device_event(data)
+  -- your code
+end
+
+function init()
+    Passthrough.init()
+    Passthrough.user_device_event = midi_device_event
+end
+```
+
 Find Passthrough related parameters in the `Passthrough` group in the params menu.
 
 ![paramsmenu](img/params1.png)

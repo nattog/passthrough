@@ -4,6 +4,7 @@
 -- from device to an interface
 -- + clocking from interface
 -- + scale quantizing
+-- + user event callbacks
 --
 -- for how to use see example
 --
@@ -21,18 +22,25 @@ local scale_names = {}
 local current_scale = {}
 local midi_notes = {}
 
+
+function Passthrough.user_device_event(data) end
+
+function Passthrough.user_interface_event(data) end
+
 function Passthrough.device_event(data)
     if #data == 0 then
         return
     end
     local msg = midi.to_msg(data)
     local dev_channel_param = params:get("device_channel")
-    local int_channel_param = params:get("interface_channel")
+    local dev_chan = dev_channel_param > 1 and (dev_channel_param - 1) or msg.ch
 
-    local int_chan = (int_channel_param == 1 and 1) or int_channel_param
+    local out_ch_param = params:get("interface_channel")
+    local out_ch = out_ch_param > 1 and (out_ch_param - 1) or msg.ch
 
-    if msg and msg.ch == dev_channel_param then
+    if msg and msg.ch == dev_chan then
         local note = msg.note
+
         if msg.note ~= nil then
             if quantize_midi == true then
                 note = MusicUtil.snap_note_to_array(note, current_scale)
@@ -40,21 +48,23 @@ function Passthrough.device_event(data)
         end
 
         if msg.type == "note_off" then
-            midi_interface:note_off(note, 0, int_chan)
+            midi_interface:note_off(note, 0, out_ch)
         elseif msg.type == "note_on" then
-            midi_interface:note_on(note, msg.vel, int_chan)
+            midi_interface:note_on(note, msg.vel, out_ch)
         elseif msg.type == "key_pressure" then
-            midi_interface:key_pressure(note, msg.val, int_chan)
+            midi_interface:key_pressure(note, msg.val, out_ch)
         elseif msg.type == "channel_pressure" then
-            midi_interface:channel_pressure(msg.val, int_chan)
+            midi_interface:channel_pressure(msg.val, out_ch)
         elseif msg.type == "pitchbend" then
-            midi_interface:pitchbend(msg.val, int_chan)
+            midi_interface:pitchbend(msg.val, out_ch)
         elseif msg.type == "program_change" then
-            midi_interface:program_change(msg.val, int_chan)
+            midi_interface:program_change(msg.val, out_ch)
         elseif msg.type == "cc" then
-            midi_interface:cc(msg.cc, msg.val, int_chan)
+            midi_interface:cc(msg.cc, msg.val, out_ch)
         end
     end
+    
+    Passthrough.user_device_event(data)
 end
 
 function Passthrough.interface_event(data)
@@ -62,6 +72,8 @@ function Passthrough.interface_event(data)
         return
     else
         local msg = midi.to_msg(data)
+        local note = msg.note
+        
         if msg.type == "clock" then
             midi_device:clock()
         elseif msg.type == "start" then
@@ -72,6 +84,8 @@ function Passthrough.interface_event(data)
             midi_device:continue()
         end
     end
+  
+    Passthrough.user_interface_event(data)
 end
 
 function Passthrough.build_scale()
@@ -95,7 +109,7 @@ function Passthrough.init()
     quantize_midi = false
 
     midi_device = midi.connect(1)
-    midi_device.event = Passthrough.device_event
+    midi_device.event = Passthrough.device_event    
     midi_interface = midi.connect(2)
     midi_interface.event = Passthrough.interface_event
 
@@ -128,7 +142,7 @@ function Passthrough.init()
         end
     }
 
-    local channels = {}
+    local channels = {"No change"}
     for i = 1, 16 do
         table.insert(channels, i)
     end
@@ -140,7 +154,14 @@ function Passthrough.init()
         default = 1
     }
 
-    params:add {type = "option", id = "interface_channel", name = "Interface channel", options = channels, default = 1}
+    channels[1] = "Device src."
+    params:add {
+        type = "option",
+        id = "interface_channel",
+        name = "Interface channel",
+        options = channels,
+        default = 1
+    }
 
     params:add {
         type = "option",
@@ -191,6 +212,10 @@ function Passthrough.init()
             Passthrough.build_scale()
         end
     }
+    
+    -- expose device and interface connections
+    Passthrough.device = midi_device
+    Passthrough.interface = midi_interface
 end
 
 return Passthrough
