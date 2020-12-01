@@ -2,7 +2,7 @@
 --
 -- library for passing midi
 -- from device to an interface
--- + clocking from interface
+-- + clock/cc from interface
 -- + scale quantizing
 -- + user event callbacks
 --
@@ -21,11 +21,13 @@ local quantize_midi
 local scale_names = {}
 local current_scale = {}
 local midi_notes = {}
+local cc_directions = {"D --> I", "D <--> I"}
 
+function Passthrough.user_device_event(data)
+end
 
-function Passthrough.user_device_event(data) end
-
-function Passthrough.user_interface_event(data) end
+function Passthrough.user_interface_event(data)
+end
 
 function Passthrough.device_event(data)
     if #data == 0 then
@@ -63,17 +65,15 @@ function Passthrough.device_event(data)
             midi_interface:cc(msg.cc, msg.val, out_ch)
         end
     end
-    
+
     Passthrough.user_device_event(data)
 end
 
 function Passthrough.interface_event(data)
-    if clock_device == false then
-        return
-    else
-        local msg = midi.to_msg(data)
-        local note = msg.note
-        
+    local msg = midi.to_msg(data)
+    local note = msg.note
+
+    if clock_device then
         if msg.type == "clock" then
             midi_device:clock()
         elseif msg.type == "start" then
@@ -84,7 +84,15 @@ function Passthrough.interface_event(data)
             midi_device:continue()
         end
     end
-  
+    if params:get("cc_direction") == 2 then
+        local dev_channel_param = params:get("device_channel")
+        local dev_chan = dev_channel_param > 1 and (dev_channel_param - 1) or msg.ch
+
+        if msg.type == "cc" then
+            midi_device:cc(msg.cc, msg.val, dev_chan)
+        end
+    end
+
     Passthrough.user_interface_event(data)
 end
 
@@ -109,13 +117,13 @@ function Passthrough.init()
     quantize_midi = false
 
     midi_device = midi.connect(1)
-    midi_device.event = Passthrough.device_event    
+    midi_device.event = Passthrough.device_event
     midi_interface = midi.connect(2)
     midi_interface.event = Passthrough.interface_event
 
     devices = Passthrough.get_midi_devices()
 
-    params:add_group("PASSTHROUGH", 8)
+    params:add_group("PASSTHROUGH", 9)
     params:add {
         type = "option",
         id = "midi_device",
@@ -140,6 +148,14 @@ function Passthrough.init()
             midi_interface = midi.connect(value)
             midi_interface.event = Passthrough.interface_event
         end
+    }
+
+    params:add {
+        type = "option",
+        id = "cc_direction",
+        name = "CC msg direction",
+        options = cc_directions,
+        default = 1
     }
 
     local channels = {"No change"}
@@ -212,7 +228,7 @@ function Passthrough.init()
             Passthrough.build_scale()
         end
     }
-    
+
     -- expose device and interface connections
     Passthrough.device = midi_device
     Passthrough.interface = midi_interface
