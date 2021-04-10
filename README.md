@@ -39,7 +39,9 @@ the installation has been successful if `passthrough` appears in the script's pa
 
 ### standalone
 as a standalone script and library, it is available to download from maiden's project manager or by running the following command in maiden's repl: 
-`;install https://github.com/nattog/passthrough`
+```
+;install https://github.com/nattog/passthrough
+```
 
 passthrough can be used with the example scripts or by attaching it to external scripts, by adding the following code at the head of the script file:
 
@@ -52,7 +54,7 @@ end
 
 ### embedded
 
-passthrough can be added to a specific script by copying this file https://github.com/nattog/passthrough/blob/main/lib/passthrough.lua to the `lib` directory of a script. If `lib` does not exist, it will need to be created. the final path should look like `[script_name]/lib/passthrough.lua`.
+passthrough can be added to a specific script by copying [this file](https://github.com/nattog/passthrough/blob/main/lib/passthrough.lua) to the `lib` directory of a script. If `lib` does not exist, it will need to be created. the final path should look like `[script_name]/lib/passthrough.lua`.
 
 then add the following code to the main script file:
 
