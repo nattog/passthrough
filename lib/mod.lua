@@ -1,7 +1,6 @@
 local mod = require 'core/mods'
 
-local pt_core = require("passthrough/lib/core")
-local Passthrough = {}
+local core = require("passthrough/lib/core")
 tab = require "tabutil"
 
 local devices = {}
@@ -11,7 +10,12 @@ local current_scale = {}
 local midi_device
 local midi_interface
 
-local settings_config = {
+local api = {}
+
+api.user_device_event = core.user_device_event
+api.user_interface_event = core.user_interface_event
+
+local passthrough_config = {
   midi_device = {
     param_type = "option",
     id = "midi_device",
@@ -22,7 +26,7 @@ local settings_config = {
           midi_device.event = nil
         end
         midi_device = midi.connect(value)
-        midi_device.event = Passthrough.device_event
+        midi_device.event = device_event
     end,
     formatter = function(value)
       return devices[value]
@@ -38,7 +42,7 @@ local settings_config = {
           midi_interface.event = nil
         end
         midi_interface = midi.connect(value)
-        midi_interface.event = Passthrough.interface_event
+        midi_interface.event = interface_event
     end,
     formatter = function(value)
       return devices[value]
@@ -48,40 +52,40 @@ local settings_config = {
     param_type = "option",
     id = "device_channel",
     name = "Device channel",
-    options = pt_core.device_channels
+    options = core.device_channels
   },
   interface_channel = {
     param_type = "option",
     id = "interface_channel",
     name = "Interface channel",
-    options = pt_core.interface_channels
+    options = core.interface_channels
   },
   cc_direction = {    
     param_type = "option",
     id = "cc_direction",
     name = "CC msg direction",
-    options = pt_core.cc_directions
+    options = core.cc_directions
   },
   clock_device = {
     param_type = "option",
     id = "clock_device",
     name = "Clock device",
-    options = pt_core.toggles,
+    options = core.toggles,
     action = function(value)
         clock_device = value == 2
         if value == 1 then
             midi_device:stop()
         end
     end
-  },
+    },
   quantize_midi = {
     param_type = "option",
     id = "quantize_midi",
     name = 'Quantize midi',
-    options = pt_core.toggles,
+    options = core.toggles,
     action = function(value)
         quantize_midi = value == 2
-        current_scale = pt_core.build_scale(state.root_note, state.current_scale)
+        current_scale = core.build_scale(state.root_note, state.current_scale)
     end
   },
   root_note = {
@@ -90,20 +94,20 @@ local settings_config = {
     name = "Root note",
     minimum = 0,
     maximum = 11,
-    formatter = pt_core.root_note_formatter,
+    formatter = core.root_note_formatter,
     action = function()
-        current_scale = pt_core.build_scale(state.root_note, state.current_scale)
+        current_scale = core.build_scale(state.root_note, state.current_scale)
     end
   },
   current_scale = {
       param_type = 'option',
       id = 'current_scale',
       name = 'Current scale',
-      options = pt_core.scale_names,
+      options = core.scale_names,
       action = function()
-        current_scale = pt_core.build_scale(state.root_note, state.current_scale)
+        current_scale = core.build_scale(state.root_note, state.current_scale)
       end
-  }
+    }
 }
 
 local state = {
@@ -116,6 +120,7 @@ local state = {
   current_scale = 1,
   cc_direction = 1,
   root_note = 0,
+  post_startup = false
 }
 
 local midi_add = _norns.midi.add
@@ -167,30 +172,49 @@ mod.hook.register("system_pre_shutdown", "write passthrough state", function()
   io.close(f)
 end)
 
-function Passthrough.user_device_event(data)
-  print('user-device-event')
+function device_event(data)
+    core.device_event(midi_interface, state.device_channel, state.interface_channel, state.quantize_midi, current_scale, data)
+    api.user_device_event(data)
 end
 
-function Passthrough.user_interface_event(data)
-  print('user-interface-event')
-end
-
-function Passthrough.device_event(data)
-    pt_core.device_event(midi_interface, state.device_channel, state.interface_channel, state.quantize_midi, current_scale, data)
-    Passthrough.user_device_event(data)
-end
-
-function Passthrough.interface_event(data)
-    pt_core.interface_event(midi_device, state.device_channel, state.clock_device, state.cc_direction, data)
-    Passthrough.user_interface_event(data)
+function interface_event(data)
+    core.interface_event(midi_device, state.device_channel, state.clock_device, state.cc_direction, data)
+    api.user_interface_event(data)
 end
 
 function update_devices() 
-  devices=pt_core.get_midi_devices()
-  settings_config.midi_device.options = devices
-  settings_config.midi_interface.options = devices
+  devices=core.get_midi_devices()
+  passthrough_config.midi_device.options = devices
+  passthrough_config.midi_interface.options = devices
+
 end
 
+function launch_passthrough()
+    -- ensure devices is up to date for device options menu
+    update_devices()
+
+    -- connect state devices
+    passthrough_config.midi_device.action(state.midi_device)
+    passthrough_config.midi_interface.action(state.midi_interface)
+    print("-- passthru ready --")
+end
+
+mod.hook.register("script_pre_init", "passthrough", function()
+  -- tweak global environment here ahead of the script `init()` function being called
+  local script_init = init
+  
+  init = function()
+      script_init()
+      launch_passthrough()
+  end
+end)
+
+local m = {}
+
+local screen_order = {{"midi_device", "midi_interface", "device_channel", "interface_channel", "clock_device", "cc_direction"}, {'quantize_midi', 'root_note', 'current_scale'}}
+
+local screen_delta = 1
+local page = 1
 
 function update_parameter(p, dir)
   -- update options
@@ -220,36 +244,6 @@ function format_parameter(p)
   return state[p.id]
 end
 
-
-function launch_passthrough()
-    -- ensure devices is up to date for device options menu
-    update_devices()
-
-    -- connect state devices
-    settings_config.midi_device.action(state.midi_device)
-    settings_config.midi_interface.action(state.midi_interface)
-    print("-- passthru ready --")
-end
-
-mod.hook.register("script_pre_init", "passthrough", function()
-  local script_init = init
-  
-  init = function()
-      script_init()
-      launch_passthrough()
-  end
-end)
-
-local m = {}
-
-local screen_order = {
-  {"midi_device", "midi_interface", "device_channel", "interface_channel", "clock_device", "cc_direction"}, 
-  {'quantize_midi', 'root_note', 'current_scale'}
-}
-
-local screen_delta = 1
-local page = 1
-
 m.key = function(n, z)
   if n == 2 and z == 1 then
     mod.menu.exit()
@@ -261,24 +255,22 @@ m.key = function(n, z)
   end
 end
 
-
 m.enc = function(n, d)
   if n == 2 then
     screen_delta = util.clamp(screen_delta + d, 1, #screen_order[page])
   end
   
   if n == 3 then
-    update_parameter(settings_config[screen_order[page][screen_delta]], d)
+    update_parameter(passthrough_config[screen_order[page][screen_delta]], d)
   end 
   mod.menu.redraw()
 end
-
 
 m.redraw = function()
   screen.clear()
   for index, value in ipairs(screen_order[page]) do
     screen.move(4, 10 * index)
-    local param = settings_config[value]
+    local param = passthrough_config[value]
     screen.level(index == screen_delta and 15 or 7)
     screen.text(param.name .. " " .. format_parameter(param))
   end
@@ -295,10 +287,7 @@ end
 
 m.deinit = function() end
 
-
 mod.menu.register(mod.this_name, m)
-
-local api = {}
 
 api.get_state = function()
   return state

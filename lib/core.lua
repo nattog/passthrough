@@ -99,4 +99,12 @@ pt_core.root_note_formatter = function(value)
   return MusicUtil.note_num_to_name(value)
 end
 
+pt_core.user_device_event = function(data)
+  print('user device event')
+end
+
+pt_core.user_interface_event = function(data)
+  print('user interface event')
+end
+
 return pt_core

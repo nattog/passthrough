@@ -1,5 +1,4 @@
-local Passthrough = include("lib/passthrough")
-
+local Passthrough = require 'passthrough/lib/mod'
 
 function midi_device_event(data)
   local msg = midi.to_msg(data)
@@ -14,9 +13,8 @@ function midi_interface_event(data)
 end
 
 function init()
-    Passthrough.init()
-    Passthrough.user_device_event = midi_device_event
-    Passthrough.user_interface_event = midi_interface_event
+  Passthrough.user_device_event = midi_device_event
+  Passthrough.user_interface_event = midi_interface_event
 end
 
 function redraw()
