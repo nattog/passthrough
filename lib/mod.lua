@@ -1,6 +1,20 @@
 local mod = require 'core/mods'
 
 
+local pt_core = require("passthrough/lib/core")
+local Passthrough = {}
+tab = require "tabutil"
+
+local first_init = false
+local devices = {}
+local clock_device
+local quantize_midi
+local current_scale = {}
+local midi_device
+local midi_interface
+
+local passthrough_config = {}
+
 local state = {
   midi_device = 1,
   device_channel=1,
@@ -10,16 +24,40 @@ local state = {
   quantize_midi = 1,
   current_scale = 1,
   cc_direction = 1,
-  root_note = 0
+  root_note = 0,
+  post_startup = false
 }
 
-mod.hook.register("system_post_startup", "read passthrough state", function()
+local midi_add = _norns.midi.add
+_norns.midi.add = function(id, name, dev)
+  midi_add(id, name, dev)
+  devices = pt_core.get_midi_devices()
+  read_state()
+  launch_passthrough()
+end
+
+local midi_remove = _norns.midi.remove
+_norns.midi.remove = function(id, name, dev)
+  midi_remove(id, name, dev)
+  devices = pt_core.get_midi_devices()
+  launch_passthrough()
+  print('midi_remove')
+end
+
+function read_state() 
   local f = io.open(_path.data..'passthrough.state')
   if f ~= nil then
     io.close(f)
     state = dofile(_path.data..'passthrough.state')
-    
   end
+end
+
+mod.hook.register("system_post_startup", "read passthrough state", function()
+  read_state()
+  midi_device = midi.connect(state.midi_device)
+  midi_interface = midi.connect(state.midi_interface)
+  launch_passthrough()
+  print('system post startup')
 end)
 
 mod.hook.register("system_pre_shutdown", "write passthrough state", function()
@@ -37,23 +75,6 @@ mod.hook.register("system_pre_shutdown", "write passthrough state", function()
   io.close(f)
 end)
 
-
-
-local pt_core = require("passthrough/lib/core")
-local Passthrough = {}
-tab = require "tabutil"
-
-local first_init = false
-local devices = {}
-local midi_device
-local midi_interface
-local clock_device
-local quantize_midi
-local current_scale = {}
-
-local passthrough_config = {}
-
-
 function Passthrough.user_device_event(data)
   print('user-device-event')
 end
@@ -62,144 +83,29 @@ function Passthrough.user_interface_event(data)
   print('user-interface-event')
 end
 
-
 function Passthrough.device_event(data)
+    print('device event')
     pt_core.device_event(midi_interface, state.device_channel, state.interface_channel, state.quantize_midi, current_scale, data)
     Passthrough.user_device_event(data)
 end
 
 function Passthrough.interface_event(data)
+    print('interface event')
     pt_core.interface_event(midi_device, state.device_channel, state.clock_device, state.cc_direction, data)
     Passthrough.user_interface_event(data)
 end
 
-function Passthrough.init()
-    -- params:add_group("PASSTHROUGH", 9)
-    -- params:add {
-    --     type = "option",
-    --     id = "midi_device",
-    --     name = "Device",
-    --     options = devices,
-    --     default = 1,
-    --     action = function(value)
-    --         midi_device.event = nil
-    --         midi_device = midi.connect(value)
-    --         midi_device.event = Passthrough.device_event
-    --     end
-    -- }
-
-    -- params:add {
-    --     type = "option",
-    --     id = "midi_interface",
-    --     name = "Interface",
-    --     options = devices,
-    --     default = 2,
-    --     action = function(value)
-    --         midi_interface.event = nil
-    --         midi_interface = midi.connect(value)
-    --         midi_interface.event = Passthrough.interface_event
-    --     end
-    -- }
-
-    -- params:add {
-    --     type = "option",
-    --     id = "cc_direction",
-    --     name = "CC msg direction",
-    --     options = cc_directions,
-    --     default = 1
-    -- }
-
-    -- local channels = {"No change"}
-    -- for i = 1, 16 do
-    --     table.insert(channels, i)
-    -- end
-    -- params:add {
-    --     type = "option",
-    --     id = "device_channel",
-    --     name = "Device channel",
-    --     options = channels,
-    --     default = 1
-    -- }
-
-    -- channels[1] = "Device src."
-    -- params:add {
-    --     type = "option",
-    --     id = "interface_channel",
-    --     name = "Interface channel",
-    --     options = channels,
-    --     default = 1
-    -- }
-
-    -- params:add {
-    --     type = "option",
-    --     id = "clock_device",
-    --     name = "Clock device",
-    --     options = {"no", "yes"},
-    --     action = function(value)
-    --         clock_device = value == 2
-    --         if value == 1 then
-    --             midi_device:stop()
-    --         end
-    --     end
-    -- }
-
-    -- params:add {
-    --     type = "option",
-    --     id = "quantize_midi",
-    --     name = "Quantize",
-    --     options = {"no", "yes"},
-    --     action = function(value)
-    --         quantize_midi = value == 2
-    --         Passthrough.build_scale()
-    --     end
-    -- }
-
-    -- params:add {
-    --     type = "option",
-    --     id = "scale_mode",
-    --     name = "Scale",
-    --     options = scale_names,
-    --     default = 5,
-    --     action = function()
-    --         Passthrough.build_scale()
-    --     end
-    -- }
-
-    -- params:add {
-    --     type = "number",
-    --     id = "root_note",
-    --     name = "Root",
-    --     min = 0,
-    --     max = 11,
-    --     default = 0,
-    --     formatter = function(param)
-    --         return MusicUtil.note_num_to_name(param:get())
-    --     end,
-    --     action = function()
-    --         Passthrough.build_scale()
-    --     end
-    -- }
-
-    -- expose device and interface connections
-    Passthrough.device = midi_device
-    Passthrough.interface = midi_interface
-    
-end
-
 function launch_passthrough()
-  if not first_init then
-    devices = pt_core.get_midi_devices()
-    midi_device = midi.connect(state.midi_device)
-    midi_interface = midi.connect(state.midi_interface)
-    
+    print('launching passthrough')
     passthrough_config = generate_param_config()
-    Passthrough.init()
     
-    midi_device.event = Passthrough.device_event
-    midi_interface.event = Passthrough.interface_event
+    local device_param = passthrough_config['midi_device']
+    local interface_param = passthrough_config['midi_interface']
     
-    first_init = true
-  end
+    device_param.action(state.midi_device)
+    interface_param.action(state.midi_interface)
+
+    print("\n-- passthru ready --\n")
 end
 
 --
@@ -217,7 +123,13 @@ end
 
 mod.hook.register("script_pre_init", "passthrough", function()
   -- tweak global environment here ahead of the script `init()` function being called
-  launch_passthrough()
+  local script_init = init
+  
+  init = function()
+      script_init()
+      midi_device = midi.connect(state.midi_device)
+      midi_interface = midi.connect(state.midi_interface)
+  end
 end)
 
 
@@ -237,9 +149,16 @@ generate_param_config = function()
     name = "Midi Device",
     options = devices,
     action = function(value)
-        midi_device.event = nil
+        print(value)
+        if midi_device then
+          print('midi_device >> ' .. midi_device.name)
+          print('state device >> ' ..state.midi_device)
+          midi_device.event = nil
+        end
         midi_device = midi.connect(value)
         midi_device.event = Passthrough.device_event
+        print('midi_device >> ' ..midi_device.name)
+        print('state device >> '.. state.midi_device)
     end
   },
   midi_interface = {
@@ -248,7 +167,9 @@ generate_param_config = function()
     name = "Midi Interface",
     options = devices,
     action = function(value)
-        midi_interface.event = nil
+        if midi_interface then
+          midi_interface.event = nil
+        end
         midi_interface = midi.connect(value)
         midi_interface.event = Passthrough.interface_event
     end
@@ -340,17 +261,17 @@ end
 function format_parameter(p) 
   if p.formatter and type(p.formatter == 'function') then
     return p.formatter(state[p.id])
-  else
-    if p.param_type == "option" then
-      return p.options[state[p.id]]
-    end
-    return state[p.id]
   end
+  
+  if p.param_type == "option" then
+    return p.options[state[p.id]]
+  end
+  
+  return state[p.id]
 end
 
 m.key = function(n, z)
   if n == 2 and z == 1 then
-    -- return to the mod selection menu
     mod.menu.exit()
   end
   if n == 3 and z == 1 then
@@ -367,8 +288,7 @@ m.enc = function(n, d)
   end
   
   if n == 3 then
-    local param = passthrough_config[screen_order[page][screen_delta]]
-    update_parameter(param, d)
+    update_parameter(passthrough_config[screen_order[page][screen_delta]], d)
   end 
   mod.menu.redraw()
 end
@@ -387,37 +307,21 @@ m.redraw = function()
 end
 
 m.init = function() 
-  launch_passthrough()
   page = 1
   screen_delta = 1
-  
-end -- on menu entry, ie, if you wanted to start timers
+  midi_device = midi.connect(state.midi_device)
+  midi_interface = midi.connect(state.midi_interface)
+end
 
-m.deinit = function() end -- on menu exit
+m.deinit = function() end
 
--- register the mod menu
---
--- NOTE: `mod.this_name` is a convienence variable which will be set to the name
--- of the mod which is being loaded. in order for the menu to work it must be
--- registered with a name which matches the name of the mod in the dust folder.
---
+
 mod.menu.register(mod.this_name, m)
 
+local api = {}
 
---
--- [optional] returning a value from the module allows the mod to provide
--- library functionality to scripts via the normal lua `require` function.
---
--- NOTE: it is important for scripts to use `require` to load mod functionality
--- instead of the norns specific `include` function. using `require` ensures
--- that only one copy of the mod is loaded. if a script were to use `include`
--- new copies of the menu, hook functions, and state would be loaded replacing
--- the previous registered functions/menu each time a script was run.
---
--- here we provide a single function which allows a script to get the mod's
--- state table. using this in a script would look like:
---
--- local mod = require 'name_of_mod/lib/mod'
--- local the_state = mod.get_state()
---
-return Passthrough
+api.get_state = function()
+  return state
+end
+
+return api
