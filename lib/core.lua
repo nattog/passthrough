@@ -32,6 +32,7 @@ end
 
 pt_core.device_event = function(midi_interface, device_channel, interface_channel, quantize_midi, current_scale, data)
     if #data == 0 then
+          print('no data')
           return
     end
     local msg = midi.to_msg(data)
@@ -99,4 +100,3 @@ pt_core.root_note_formatter = function(value)
 end
 
 return pt_core
-
