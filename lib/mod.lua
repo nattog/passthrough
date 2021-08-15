@@ -104,7 +104,15 @@ function launch_passthrough()
     
     device_param.action(state.midi_device)
     interface_param.action(state.midi_interface)
-
+    
+    print("          ")
+    print(state.midi_device)
+    print(state.midi_interface)
+    print("          ")
+    print(midi_device.name .. (midi_device.connected and 'true' or 'false'))
+    print("          ")
+    print(midi_interface.name .. (midi_interface.connected and 'true' or 'false'))
+    print("          ")
     print("\n-- passthru ready --\n")
 end
 
@@ -129,6 +137,16 @@ mod.hook.register("script_pre_init", "passthrough", function()
       script_init()
       midi_device = midi.connect(state.midi_device)
       midi_interface = midi.connect(state.midi_interface)
+      
+      print("          ")
+      print(state.midi_device)
+      print(state.midi_interface)
+      print("          ")
+      print(midi_device.name .. (midi_device.connected and 'true' or 'false'))
+      print("          ")
+      print(midi_interface.name .. (midi_interface.connected and 'true' or 'false'))
+      print("          ")
+
   end
 end)
 
@@ -149,16 +167,11 @@ generate_param_config = function()
     name = "Midi Device",
     options = devices,
     action = function(value)
-        print(value)
         if midi_device then
-          print('midi_device >> ' .. midi_device.name)
-          print('state device >> ' ..state.midi_device)
           midi_device.event = nil
         end
         midi_device = midi.connect(value)
         midi_device.event = Passthrough.device_event
-        print('midi_device >> ' ..midi_device.name)
-        print('state device >> '.. state.midi_device)
     end
   },
   midi_interface = {
@@ -309,8 +322,14 @@ end
 m.init = function() 
   page = 1
   screen_delta = 1
+  
   midi_device = midi.connect(state.midi_device)
   midi_interface = midi.connect(state.midi_interface)
+  
+  tab.print(state)
+  tab.print(midi_device)
+  tab.print(midi_interface)
+  tab.print(passthrough_config)
 end
 
 m.deinit = function() end
