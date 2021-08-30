@@ -1,7 +1,7 @@
-MusicUtil = require "musicutil"
-
+local MusicUtil = require "musicutil"
 local pt_core = {}
 
+pt_core.params_added = false
 pt_core.device_channels = {"No change"}
 pt_core.interface_channels = {"Device src."}
 
@@ -32,6 +32,7 @@ end
 
 pt_core.device_event = function(midi_interface, device_channel, interface_channel, quantize_midi, current_scale, data)
     if #data == 0 then
+          print('No data')
           return
     end
     local msg = midi.to_msg(data)
@@ -96,6 +97,14 @@ end
 
 pt_core.root_note_formatter = function(value)
   return MusicUtil.note_num_to_name(value)
+end
+
+pt_core.user_device_event = function(data)
+  print('>> user-device-event <<')
+end
+
+pt_core.user_interface_event = function(data)
+  print('>> user-interface-event <<')
 end
 
 return pt_core
