@@ -4,10 +4,17 @@ local pt_core = {}
 pt_core.params_added = false
 pt_core.device_channels = {"No change"}
 pt_core.interface_channels = {"Device src."}
+pt_core.midi_ports = {}
+pt_core.midi_connections = {}
+pt_core.available_targets = {"all"}
+
+pt_core.raw_ports = {}
 
 for i = 1, 16 do
+    table.insert(pt_core.raw_ports, i)
     table.insert(pt_core.device_channels, i)
     table.insert(pt_core.interface_channels, i)
+    table.insert(pt_core.available_targets, i)
 end
 
 pt_core.scale_names = {}
@@ -30,7 +37,57 @@ pt_core.get_midi_devices = function()
     return d
 end
 
-pt_core.device_event = function(midi_interface, device_channel, interface_channel, quantize_midi, current_scale, data)
+pt_core.setup_midi = function()
+    local midi_ports={}
+    local midi_connections = {}
+    for _,dev in pairs(midi.devices) do
+        if dev.port~=nil then
+          table.insert(midi_ports,dev.name)
+          local existing_event = midi.vports[dev.id].event and midi.vports[dev.id].event or nil
+          local conn=midi.connect(dev.port)
+          conn.event=function(data)
+            if existing_event then
+                existing_event(data)
+            end
+              device_event(data)
+          end
+          table.insert(midi_connections, conn)
+        end
+      end
+
+    pt_core.midi_ports = midi_ports
+    pt_core.midi_connections = midi_connections
+    tab.print(midi_ports)
+    tab.print(midi_connections)
+end
+
+pt_core.handle_midi_data = function(msg, target, out_ch, quantize_midi, current_scale)
+    local note = msg.note
+
+    if msg.note ~= nil then
+        if quantize_midi then
+            note = MusicUtil.snap_note_to_array(note, current_scale)
+        end
+    end
+
+    if msg.type == "note_off" then
+        target:note_off(note, 0, out_ch)
+    elseif msg.type == "note_on" then
+        target:note_on(note, msg.vel, out_ch)
+    elseif msg.type == "key_pressure" then
+        target:key_pressure(note, msg.val, out_ch)
+    elseif msg.type == "channel_pressure" then
+        target:channel_pressure(msg.val, out_ch)
+    elseif msg.type == "pitchbend" then
+        target:pitchbend(msg.val, out_ch)
+    elseif msg.type == "program_change" then
+        target:program_change(msg.val, out_ch)
+    elseif msg.type == "cc" then
+        target:cc(msg.cc, msg.val, out_ch)
+    end
+end
+
+pt_core.device_event = function(origin, device_target, device_channel, interface_channel, quantize_midi, current_scale, data)
     if #data == 0 then
           print('no data')
           return
@@ -43,28 +100,16 @@ pt_core.device_event = function(midi_interface, device_channel, interface_channe
     local out_ch = out_ch_param > 1 and (out_ch_param - 1) or msg.ch
 
     if msg and msg.ch == dev_chan then
-        local note = msg.note
-
-        if msg.note ~= nil then
-            if quantize_midi then
-                note = MusicUtil.snap_note_to_array(note, current_scale)
+        if device_target == 1 then
+            for target = 1, #pt_core.midi_ports do
+                if origin ~= target then
+                    pt_core.handle_midi_data(msg, pt_core.midi_connections[target], out_ch, quantize_midi, current_scale)
+                end
             end
-        end
-
-        if msg.type == "note_off" then
-            midi_interface:note_off(note, 0, out_ch)
-        elseif msg.type == "note_on" then
-            midi_interface:note_on(note, msg.vel, out_ch)
-        elseif msg.type == "key_pressure" then
-            midi_interface:key_pressure(note, msg.val, out_ch)
-        elseif msg.type == "channel_pressure" then
-            midi_interface:channel_pressure(msg.val, out_ch)
-        elseif msg.type == "pitchbend" then
-            midi_interface:pitchbend(msg.val, out_ch)
-        elseif msg.type == "program_change" then
-            midi_interface:program_change(msg.val, out_ch)
-        elseif msg.type == "cc" then
-            midi_interface:cc(msg.cc, msg.val, out_ch)
+        else
+            if origin ~= target then
+                pt_core.handle_midi_data(msg, pt_core.midi_connections[device_target - 1], out_ch, quantize_midi, current_scale)
+            end
         end
     end
 end

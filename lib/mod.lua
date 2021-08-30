@@ -5,6 +5,7 @@ tab = require "tabutil"
 
 local devices = {}
 local clock_device
+local send_clock
 local quantize_midi
 local current_scale = {}
 local midi_device
@@ -21,6 +22,10 @@ local state = {
   device_channel=1,
   midi_interface = 2,
   interface_channel=1,
+  target=1,
+  input_channel=1, 
+  output_channel = 1,
+  send_clock=1,
   clock_device = 1,
   quantize_midi = 1,
   current_scale = 1,
@@ -29,67 +34,90 @@ local state = {
   post_startup = false
 }
 
+local new_state = {}
+for i=1, 16 do 
+  table.insert(new_state, {
+    target = 1,
+    input_channel = 1,
+    output_channel = 1,
+    send_clock = 1,
+    quantize_midi = 1,
+    current_scale = 1,
+    root_note = 1,
+  })
+end
+
+-- local new_state = {
+--   {
+--     target = 1,
+--     input_channel = 1,
+--     output_channel = 1,
+--     send_clock = 1,
+--     quantize_midi = 1,
+--     current_scale = 1,
+--     root_note = 1,
+--   },
+--   {
+--     target = 1,
+--     input_channel = 1,
+--     output_channel = 1,
+--     send_clock = 1,
+--     quantize_midi = 1,
+--     current_scale = 1,
+--     root_note = 1,
+--   },
+--   {
+--     target = 1,
+--     input_channel = 1,
+--     output_channel = 1,
+--     send_clock = 1,
+--     quantize_midi = 1,
+--     current_scale = 1,
+--     root_note = 1,
+--   },
+--   {
+--     target = 1,
+--     input_channel = 1,
+--     output_channel = 1,
+--     send_clock = 1,
+--     quantize_midi = 1,
+--     current_scale = 1,
+--     root_note = 1,
+--   }
+-- }
+
 local passthrough_config = {
-  midi_device = {
+  target = {
     param_type = "option",
-    id = "midi_device",
-    name = "Midi Device",
-    options = devices,
-    action = function(value)
-        if midi_device then
-          midi_device.event = nil
-        end
-        midi_device = midi.connect(value)
-        midi_device.event = device_event
-    end,
+    id = "target",
+    name = "Target",
+    options = core.available_targets,
     formatter = function(value)
-      return devices[value]
+      return value == 1 and core.available_targets[value] or core.midi_ports[value-1]
     end
   },
-  midi_interface = {
+  input_channel = {
     param_type = "option",
-    id = "midi_interface",
-    name = "Midi Interface",
-    options = devices,
-    action = function(value)
-        if midi_interface then
-          midi_interface.event = nil
-        end
-        midi_interface = midi.connect(value)
-        midi_interface.event = interface_event
-    end,
-    formatter = function(value)
-      return devices[value]
-    end
-  },
-  device_channel = {
-    param_type = "option",
-    id = "device_channel",
-    name = "Device channel",
+    id = "input_channel",
+    name = "Input channel",
     options = core.device_channels
   },
-  interface_channel = {
+  output_channel = {
     param_type = "option",
-    id = "interface_channel",
-    name = "Interface channel",
+    id = "output_channel",
+    name = "Output channel",
     options = core.interface_channels
   },
-  cc_direction = {    
+  send_clock = {
     param_type = "option",
-    id = "cc_direction",
-    name = "CC msg direction",
-    options = core.cc_directions
-  },
-  clock_device = {
-    param_type = "option",
-    id = "clock_device",
-    name = "Clock device",
+    id = "send_clock",
+    name = "Clock out",
     options = core.toggles,
     action = function(value)
-        clock_device = value == 2
-        if value == 1 then
-            midi_device:stop()
-        end
+        send_clock = value == 2
+        -- if value == 1 then
+        --     midi_device:stop()
+        -- end
     end
     },
   quantize_midi = {
@@ -105,7 +133,7 @@ local passthrough_config = {
   root_note = {
     param_type = 'number',
     id = 'root_note',
-    name = "Root note",
+    name = "Root",
     minimum = 0,
     maximum = 11,
     formatter = core.root_note_formatter,
@@ -116,7 +144,7 @@ local passthrough_config = {
   current_scale = {
       param_type = 'option',
       id = 'current_scale',
-      name = 'Current scale',
+      name = 'Scale',
       options = core.scale_names,
       action = function()
         current_scale = core.build_scale(state.root_note, state.current_scale)
@@ -155,8 +183,8 @@ function read_state()
 end
 
 mod.hook.register("system_post_startup", "read passthrough state", function()
+  core.setup_midi()
   read_state()
-  update_devices()
 end)
 
 mod.hook.register("system_pre_shutdown", "write passthrough state", function()
@@ -164,6 +192,7 @@ mod.hook.register("system_pre_shutdown", "write passthrough state", function()
   io.output(f)
   io.write("return { midi_device="..state.midi_device..',')
   io.write("device_channel="..state.device_channel..',')
+  io.write("target="..state.target..',')
   io.write("midi_interface="..state.midi_interface..',')
   io.write("interface_channel="..state.interface_channel..',')
   io.write("clock_device="..state.clock_device..',')
@@ -178,8 +207,8 @@ mod.hook.register("script_post_cleanup", "passthrough post cleanup", function()
   launch_passthrough()
 end)
 
-function device_event(data)
-    core.device_event(midi_interface, state.device_channel, state.interface_channel, state.quantize_midi, current_scale, data)
+function device_event(data, origin)
+    core.device_event(origin, state.target, state.device_channel, state.interface_channel, state.quantize_midi, current_scale, data)
     api.user_device_event(data)
 end
 
@@ -191,190 +220,201 @@ end
 
 function update_devices() 
   devices=core.get_midi_devices()
-  passthrough_config.midi_device.options = devices
-  passthrough_config.midi_interface.options = devices
-
+  core.setup_midi()
 end
 
 function launch_passthrough()
     running = true
     -- ensure devices is up to date for device options menu
     update_devices()
+    core.setup_midi()
 
     -- connect state devices
-    passthrough_config.midi_device.action(state.midi_device)
-    passthrough_config.midi_interface.action(state.midi_interface)
-    print("-- passthru ready --")
 end
 
-function add_params()
-    params:add_group("PASSTHROUGH", 9)
-    params:add {
-        type = "option",
-        id = "midi_device",
-        name = "Device",
-        options = devices,
-        default = state.midi_device,
-        action = function(value)
-            state.midi_device = value
-            midi_device.event = nil
-            local existing_event = midi.vports[value].event and midi.vports[value].event or nil
-            midi_device = midi.connect(value)
-            midi_device.event = function(data) 
-              if existing_event then
-                existing_event(data)
-              end
-              device_event(data)
-            end
-        end
-    }
-    params:add {
-        type = "option",
-        id = "midi_interface",
-        name = "Interface",
-        options = devices,
-        default = state.midi_interface,
-        action = function(value)
-            state.midi_interface = value
-            midi_interface.event = nil
-            local existing_event = midi.vports[value].event and midi.vports[value].event or nil
-            midi_interface = midi.connect(value)
-            midi_interface.event = function(data) 
-              if existing_event then
-                existing_event(data)
-              end
-              interface_event(data) 
-            end
-        end
-    }
-    params:add {
-        type = "option",
-        id = "cc_direction",
-        name = "CC msg direction",
-        options = core.cc_directions,
-        default = state.cc_direction,
-        action = function(value)
-          state.cc_direction = value
-        end
-    }
-    params:add {
-        type = "option",
-        id = "device_channel",
-        name = "Device channel",
-        options = core.device_channels,
-        default = state.device_channel,
-        action = function(value)
-          state.device_channel = value
-        end
-    }
-    params:add {
-        type = "option",
-        id = "interface_channel",
-        name = "Interface channel",
-        options = core.interface_channels,
-        default = state.interface_channel,
-        action = function(value)
-          state.interface_channel = value
-        end
-    }
-    params:add {
-        type = "option",
-        id = "clock_device",
-        name = "Clock device",
-        options = core.toggles,
-        action = function(value)
-            state.clock_device = value
-            clock_device = value == 2
-            if value == 1 then
-                midi_device:stop()
-            end
-        end
-    }
-    params:add {
-        type = "option",
-        id = "quantize_midi",
-        name = "Quantize",
-        options = {"no", "yes"},
-        action = function(value)
-            state.quantize_midi = value
-            quantize_midi = value == 2
-            current_scale = core.build_scale(state.root_note, state.current_scale)
-        end
-    }
+-- function add_params()
+--     params:add_group("PASSTHROUGH", 9)
+--     params:add {
+--         type = "option",
+--         id = "midi_device",
+--         name = "Device",
+--         options = devices,
+--         default = state.midi_device,
+--         action = function(value)
+--             state.midi_device = value
+--             midi_device.event = nil
+--             local existing_event = midi.vports[value].event and midi.vports[value].event or nil
+--             midi_device = midi.connect(value)
+--             midi_device.event = function(data) 
+--               if existing_event then
+--                 existing_event(data)
+--               end
+--               device_event(data)
+--             end
+--         end
+--     }
+--     params:add {
+--         type = "option",
+--         id = "target",
+--         name = "Target",
+--         options = core.available_targets,
+--         default = state.target,
+--         action = function(value)
+--             state.target = value
+--         end
+--     }
+--     params:add {
+--         type = "option",
+--         id = "midi_interface",
+--         name = "Interface",
+--         options = devices,
+--         default = state.midi_interface,
+--         action = function(value)
+--             state.midi_interface = value
+--             midi_interface.event = nil
+--             local existing_event = midi.vports[value].event and midi.vports[value].event or nil
+--             midi_interface = midi.connect(value)
+--             midi_interface.event = function(data) 
+--               if existing_event then
+--                 existing_event(data)
+--               end
+--               interface_event(data) 
+--             end
+--         end
+--     }
+--     params:add {
+--         type = "option",
+--         id = "cc_direction",
+--         name = "CC msg direction",
+--         options = core.cc_directions,
+--         default = state.cc_direction,
+--         action = function(value)
+--           state.cc_direction = value
+--         end
+--     }
+--     params:add {
+--         type = "option",
+--         id = "device_channel",
+--         name = "Device channel",
+--         options = core.device_channels,
+--         default = state.device_channel,
+--         action = function(value)
+--           state.device_channel = value
+--         end
+--     }
+--     params:add {
+--         type = "option",
+--         id = "interface_channel",
+--         name = "Interface channel",
+--         options = core.interface_channels,
+--         default = state.interface_channel,
+--         action = function(value)
+--           state.interface_channel = value
+--         end
+--     }
+--     params:add {
+--         type = "option",
+--         id = "clock_device",
+--         name = "Clock device",
+--         options = core.toggles,
+--         action = function(value)
+--             state.clock_device = value
+--             clock_device = value == 2
+--             if value == 1 then
+--                 midi_device:stop()
+--             end
+--         end
+--     }
+--     params:add {
+--         type = "option",
+--         id = "quantize_midi",
+--         name = "Quantize",
+--         options = {"no", "yes"},
+--         action = function(value)
+--             state.quantize_midi = value
+--             quantize_midi = value == 2
+--             current_scale = core.build_scale(state.root_note, state.current_scale)
+--         end
+--     }
     
-    params:add {
-        type = "number",
-        id = "root_note",
-        name = "Root",
-        min = 0,
-        max = 11,
-        default = 0,
-        formatter = function(param) 
-          return core.root_note_formatter(param:get())
-        end,
-        action = function(value)
-            state.root_note = value
-            current_scale = core.build_scale(state.root_note, state.current_scale)
-        end
+--     params:add {
+--         type = "number",
+--         id = "root_note",
+--         name = "Root",
+--         min = 0,
+--         max = 11,
+--         default = 0,
+--         formatter = function(param) 
+--           return core.root_note_formatter(param:get())
+--         end,
+--         action = function(value)
+--             state.root_note = value
+--             current_scale = core.build_scale(state.root_note, state.current_scale)
+--         end
         
-    }
+--     }
 
-    params:add {
-        type = "option",
-        id = "current_scale",
-        name = "Current Scale",
-        options = core.scale_names,
-        default = 5,
-        action = function(value)
-            state.current_scale = value
-            current_scale = core.build_scale(state.root_note, state.current_scale)
-        end
-    }
+--     params:add {
+--         type = "option",
+--         id = "current_scale",
+--         name = "Current Scale",
+--         options = core.scale_names,
+--         default = 5,
+--         action = function(value)
+--             state.current_scale = value
+--             current_scale = core.build_scale(state.root_note, state.current_scale)
+--         end
+--     }
 
-    core.params_added = true
-end
+--     core.params_added = true
+-- end
 
 mod.hook.register("script_pre_init", "passthrough", function()
   -- tweak global environment here ahead of the script `init()` function being called
   local script_init = init
   
   init = function()
-      add_params()
+      -- add_params()
       script_init()
       launch_passthrough()
   end
 end)
 
-local m = {}
+local screen_order = {{"target", "input_channel", "output_channel", "send_clock", 'quantize_midi', 'root_note', 'current_scale'}}
+local m = {
+  list={"target", "input_channel", "output_channel", "send_clock", 'quantize_midi', 'root_note', 'current_scale'},
+  pos=0,
+  page=1,
+  len=tab.count(screen_order[1])
+}
 
-local screen_order = {{"midi_device", "midi_interface", "device_channel", "interface_channel", "clock_device", "cc_direction"}, {'quantize_midi', 'root_note', 'current_scale'}}
 
 local screen_delta = 1
 local page = 1
 
-function update_parameter(p, dir)
+function update_parameter(p, index, dir)
   -- update options
   if p.param_type == "option" then
-    state[p.id] = util.clamp(state[p.id] + dir, 1, #p.options)
+    new_state[index][p.id] = util.clamp(new_state[index][p.id] + dir, 1, #p.options)
   end
 
   -- generate scale
   if p.param_type == 'number' then
-    state[p.id] = util.clamp(state[p.id] + dir, p.minimum, p.maximum)
+    new_state[index][p.id] = util.clamp(new_state[index][p.id] + dir, p.minimum, p.maximum)
   end
   
   if p.action and type(p.action == 'function') then
-    p.action(state[p.id])
+    p.action(new_state[index][p.id])
   end
 end
 
-function format_parameter(p) 
+function format_parameter(p, index) 
   if p.formatter and type(p.formatter == 'function') then
-    return p.formatter(state[p.id])
+    return p.formatter(new_state[index][p.id])
   end
 
   if p.param_type == "option" then
-    return p.options[state[p.id]]
+    return p.options[new_state[index][p.id]]
   end
 
   return state[p.id]
@@ -385,7 +425,7 @@ m.key = function(n, z)
     mod.menu.exit()
   end
   if n == 3 and z == 1 then
-    page = page == 1 and 2 or 1
+    page = page + z > 3 and 1 or page + z
     screen_delta = 1
     mod.menu.redraw()
   end
@@ -393,24 +433,36 @@ end
 
 m.enc = function(n, d)
   if n == 2 then
-    screen_delta = util.clamp(screen_delta + d, 1, #screen_order[page])
+    m.pos = util.clamp(m.pos + d, 0, m.len - 1)
   end
   
   if n == 3 then
-    update_parameter(passthrough_config[screen_order[page][screen_delta]], d)
+    update_parameter(passthrough_config[screen_order[page][m.pos + 1]], 1, d)
   end 
   mod.menu.redraw()
 end
 
 m.redraw = function()
   screen.clear()
-  for index, value in ipairs(screen_order[page]) do
-    screen.move(4, 10 * index)
-    local param = passthrough_config[value]
-    screen.level(index == screen_delta and 15 or 7)
-    screen.text(param.name .. " " .. format_parameter(param))
+  for i=1,6 do
+    if (i > 2 - m.pos) and (i < m.len - m.pos + 3) then
+      screen.move(0,10*i)
+      local line = m.list[i+m.pos-2]
+      local param = passthrough_config[line]
+      if(i==3) then
+        screen.level(15)
+      else
+        screen.level(4)
+      end
+      screen.text(param.name .. " : " .. format_parameter(param, 1))
+    end
   end
-  
+  screen.rect(0, 0, 140, 13)
+  screen.level(0)
+  screen.fill()
+  screen.level(15)
+  screen.move(120, 10)
+  screen.text_right(string.upper(core.midi_ports[page]))
   screen.update()
 end
 
