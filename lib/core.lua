@@ -32,7 +32,7 @@ end
 
 pt_core.device_event = function(midi_interface, device_channel, interface_channel, quantize_midi, current_scale, data)
     if #data == 0 then
-          print('No data')
+          print('no data')
           return
     end
     local msg = midi.to_msg(data)
@@ -108,4 +108,3 @@ pt_core.user_interface_event = function(data)
 end
 
 return pt_core
-
