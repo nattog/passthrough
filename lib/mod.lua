@@ -1,19 +1,111 @@
 local mod = require 'core/mods'
 
 local core = require("passthrough/lib/core")
-tab = require "tabutil"
+local tab = require "tabutil"
 
 local api = {}
 local clock_messages = {"clock", "start", "stop", "continue"}
-local display_panic = false
-
 local config = {}
-
-api.user_device_event = core.user_device_event
-
 local state = {}
 
-create_config = function()
+-- NORNS OVERRIDES --
+
+local midi_add = _norns.midi.add
+local midi_remove = _norns.midi.remove
+local midi_connect = _norns.midi.connect
+local script_clear = norns.script.clear
+
+_norns.midi.add = function(id, name, dev)
+  midi_add(id, name, dev)
+  update_devices()
+end
+
+_norns.midi.remove = function(id)
+  midi_remove(id)
+  update_devices()
+end
+
+_norns.midi.connect = function(id)
+    midi_connect(id)
+end
+
+norns.script.clear = function()
+  script_clear()
+  launch_passthrough()
+end
+
+-- STATE FUNCTIONS --
+function write_state()
+  local f = io.open(_path.data..'passthrough.state',"w+")
+  io.output(f)
+  io.write("return {")
+  for i =1, tab.count(state) do
+    local port_config = state[i]
+    if i~=1 then
+      io.write(",")
+    end
+    io.write("{ target="..port_config.target..",")
+    io.write("input_channel="..port_config.input_channel..",")
+    io.write("output_channel="..port_config.output_channel..",")
+    io.write("send_clock="..port_config.send_clock..",")
+    io.write("quantize_midi="..port_config.quantize_midi..",")
+    io.write("current_scale="..port_config.current_scale..",")
+    io.write("root_note="..port_config.root_note.."}")
+  end
+  io.write("}\n")
+  io.close(f)
+end
+
+function read_state() 
+  local f = io.open(_path.data..'passthrough.state')
+  if f ~= nil then
+    io.close(f)
+    state = dofile(_path.data..'passthrough.state')
+  end
+
+  for i = 1, tab.count(state) do
+    core.build_scale(state[i].root_note, state[i].current_scale, i)
+  end
+end
+
+function assign_state()
+  for i=1, tab.count(config) do
+    if state[i] then
+      for k, v in ipairs(state[i]) do
+        config[k].action(v)
+      end
+    end
+  end
+end
+
+-- HOOKS --
+mod.hook.register("system_post_startup", "read passthrough state", function()
+  read_state()
+  launch_passthrough()
+end)
+
+mod.hook.register("system_pre_shutdown", "write passthrough state", function()
+  write_state()
+end)
+
+mod.hook.register("script_post_cleanup", "passthrough post cleanup", function()
+  launch_passthrough()
+  api.user_event = core.user_event
+end)
+
+mod.hook.register("script_pre_init", "passthrough", function()
+  -- tweak global environment here ahead of the script `init()` function being called
+  local script_init = init
+  
+  init = function()
+      script_init()
+      launch_passthrough()
+  end
+end)
+
+
+-- ACTIONS + EVENTS --
+function create_config()
   local config={}
   for port = 1, tab.count(core.midi_ports) do
     -- if no state exists for this port, create a new one
@@ -106,95 +198,20 @@ create_config = function()
   return config
 end
 
-local midi_add = _norns.midi.add
-
-_norns.midi.add = function(id, name, dev)
-  midi_add(id, name, dev)
-  update_devices()
-end
-
-local midi_remove = _norns.midi.remove
-
-_norns.midi.remove = function(id)
-  midi_remove(id)
-  update_devices()
-end
-
-local midi_connect = _norns.midi.connect
-
-_norns.midi.connect = function(id)
-    midi_connect(id)
-end
-
-local script_clear = norns.script.clear
-
-norns.script.clear = function()
-  script_clear()
-  launch_passthrough()
-end
-
-function write_state()
-  local f = io.open(_path.data..'passthrough.state',"w+")
-  io.output(f)
-  io.write("return {")
-  for i =1, tab.count(state) do
-    local port_config = state[i]
-    if i~=1 then
-      io.write(",")
-    end
-    io.write("{ target="..port_config.target..",")
-    io.write("input_channel="..port_config.input_channel..",")
-    io.write("output_channel="..port_config.output_channel..",")
-    io.write("send_clock="..port_config.send_clock..",")
-    io.write("quantize_midi="..port_config.quantize_midi..",")
-    io.write("current_scale="..port_config.current_scale..",")
-    io.write("root_note="..port_config.root_note.."}")
-  end
-  io.write("}\n")
-  io.close(f)
-end
-
-function read_state() 
-  local f = io.open(_path.data..'passthrough.state')
-  if f ~= nil then
-    io.close(f)
-    state = dofile(_path.data..'passthrough.state')
-  end
-
-  for i = 1, tab.count(state) do
-    core.build_scale(state[i].root_note, state[i].current_scale, i)
-  end
-end
-
-function assign_state()
-  for i=1, tab.count(config) do
-    if state[i] then
-      for k, v in ipairs(state[i]) do
-        config[k].action(v)
-      end
-    end
-  end
-end
-
-mod.hook.register("system_post_startup", "read passthrough state", function()
-  read_state()
-  launch_passthrough()
-end)
-
-mod.hook.register("system_pre_shutdown", "write passthrough state", function()
-  write_state()
-end)
-
-mod.hook.register("script_post_cleanup", "passthrough post cleanup", function()
-  launch_passthrough()
-end)
-
 function device_event(data, origin)
-    core.device_event(origin, state[origin].target, state[origin].input_channel, state[origin].output_channel, state[origin].send_clock, state[origin].quantize_midi, state[origin].current_scale, data)
+    core.device_event(
+      origin,
+      state[origin].target,
+      state[origin].input_channel,
+      state[origin].output_channel,
+      state[origin].send_clock,
+      state[origin].quantize_midi,
+      state[origin].current_scale,
+      data)
 
     -- filter unwanted clock events
     if state[origin].send_clock == 1 and #data and tab.contains(clock_messages, midi.to_msg(data).type) then return end
-    api.user_device_event(data)
+    api.user_event(data, {name= core.midi_ports[origin], port= origin})
 end
 
 function update_devices() 
@@ -207,25 +224,6 @@ function launch_passthrough()
     update_devices()
 end
 
-mod.hook.register("script_pre_init", "passthrough", function()
-  -- tweak global environment here ahead of the script `init()` function being called
-  local script_init = init
-  
-  init = function()
-      script_init()
-      launch_passthrough()
-  end
-end)
-
-local screen_order = {"target", "input_channel", "output_channel", "send_clock", 'quantize_midi', 'root_note', 'current_scale', 'midi_panic'}
-local m = {
-  list=screen_order,
-  pos=0,
-  page=1,
-  len=tab.count(screen_order),
-  show_hint = true
-}
-
 function update_parameter(p, index, dir)
   -- update options
   if p.param_type == "option" then
@@ -236,7 +234,7 @@ function update_parameter(p, index, dir)
   if p.param_type == 'number' then
     state[index][p.id] = util.clamp(state[index][p.id] + dir, p.minimum, p.maximum)
   end
-  
+
   if p.action and type(p.action == 'function') then
     p.action(state[index][p.id])
   end
@@ -256,6 +254,27 @@ function format_parameter(p, index)
   return state[index][p.id]
 end
 
+
+-- MOD MENU --
+local screen_order = {"target", "input_channel", "output_channel", "send_clock", 'quantize_midi', 'root_note', 'current_scale', 'midi_panic'}
+local m = {
+  list=screen_order,
+  pos=0,
+  page=1,
+  len=tab.count(screen_order),
+  show_hint = true,
+  display_panic = false
+}
+
+local toggle_display_panic = function()
+  clock.run(function()
+      m.display_panic=true
+      clock.sleep(0.5)
+      m.display_panic=false
+      mod.menu.redraw()
+  end)
+end
+
 m.key = function(n, z)
   if n == 2 and z == 1 then
     mod.menu.exit()
@@ -271,20 +290,18 @@ end
 m.enc = function(n, d)
   m.show_hint = false
   if n == 2 then
+    if m.pos == 0 and d == -1 then
+      m.show_hint = true
+    end
     m.pos = util.clamp(m.pos + d, 0, m.len - 1)
   end
-  
+
   if n == 3 then
-    if screen_order[m.pos+1] == 'midi_panic' then
+    if m.list[m.pos+1] == 'midi_panic' then
       core.stop_all_notes()
-      display_panic=true
-      clock.run(function()
-        clock.sleep(0.5)
-        display_panic=false
-        mod.menu.redraw()
-      end)
+      toggle_display_panic()
     else
-      update_parameter(config[m.page][screen_order[m.pos + 1]], m.page, d)
+      update_parameter(config[m.page][m.list[m.pos + 1]], m.page, d)
     end
   end 
   mod.menu.redraw()
@@ -305,7 +322,7 @@ m.redraw = function()
       if line == 'midi_panic' then
         screen.text("Midi panic : ")
         screen.rect(50, (10*i)-4.5, 5, 5)
-        screen.level(display_panic and 15 or 4)
+        screen.level(m.display_panic and 15 or 4)
         screen.fill()
       else
         local param = config[m.page][line]
@@ -344,8 +361,11 @@ end
 
 mod.menu.register(mod.this_name, m)
 
+-- API --
 api.get_state = function()
   return state
 end
+
+api.user_event = core.user_event
 
 return api

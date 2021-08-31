@@ -11,11 +11,13 @@ pt_core.available_targets = {}
 pt_core.scales = {}
 local active_notes = {}
 
-for i = 1, 16 do
-    table.insert(pt_core.input_channels, i)
-    table.insert(pt_core.output_channels, i)
+-- UTIL --
+local function get_channel_value(channel_param_value, msg_channel)
+    local channel_param= channel_param_value
+    return channel_param > 1 and (channel_param - 1) or msg_channel
 end
 
+-- SCALE SETUP --
 pt_core.scale_names = {}
 for i = 1, #MusicUtil.SCALES do
     table.insert(pt_core.scale_names, string.lower(MusicUtil.SCALES[i].name))
@@ -25,15 +27,21 @@ pt_core.build_scale = function(root, scale, index)
     pt_core.scales[index] = MusicUtil.generate_scale_of_length(root, scale, 128)
 end
 
+-- MIDI DEVICE DETECTION --
+for i = 1, 16 do
+    table.insert(pt_core.input_channels, i)
+    table.insert(pt_core.output_channels, i)
+end
+
 pt_core.setup_midi = function()
     local midi_ports={}
     local midi_connections = {}
     local available_targets = {"all"}
     for _,dev in pairs(midi.devices) do
         if dev.port~=nil then
-          table.insert(midi_ports,dev.name)
-           local conn=midi.connect(dev.port)
-          table.insert(midi_connections, conn)
+            table.insert(midi_ports,dev.name)
+            local conn=midi.connect(dev.port)
+            table.insert(midi_connections, conn)
         end
     end
 
@@ -45,6 +53,11 @@ pt_core.setup_midi = function()
     pt_core.available_targets = available_targets
 end
 
+pt_core.root_note_formatter = function(value)
+    return MusicUtil.note_num_to_name(value)
+end
+
+-- EVENTS ON MENU CHANGE --
 pt_core.remove_active_note = function(target, note, ch)
     local i = 1
     while i <= #active_notes do
@@ -56,12 +69,12 @@ pt_core.remove_active_note = function(target, note, ch)
 end
 
 pt_core.stop_clocks = function(origin, device_target)
-    target_all = device_target == 1
-
+    local target_all = device_target == 1
+    local msg = {type="stop"}
     if target_all then
         for target = 1, #pt_core.midi_ports do
             if origin ~= target then
-                pt_core.handle_clock_data({type= "stop"}, pt_core.midi_connections[target])
+                pt_core.handle_clock_data(msg, pt_core.midi_connections[target])
             end
         end
     elseif origin ~= device_target then
@@ -78,6 +91,7 @@ pt_core.stop_all_notes = function()
     active_notes= {}
 end
 
+-- DATA HANDLERS --
 pt_core.handle_midi_data = function(msg, target, out_ch, quantize_midi, current_scale)
     local note = msg.note
 
@@ -118,22 +132,20 @@ pt_core.handle_clock_data = function(msg, target)
     end
 end
 
-pt_core.device_event = function(origin, device_target, device_channel, interface_channel, send_clock, quantize_midi, current_scale, data)
+pt_core.device_event = function(origin, device_target, input_channel, output_channel, send_clock, quantize_midi, current_scale, data)
     if #data == 0 then
         print('no data')
         return
     end
     local msg = midi.to_msg(data)
-    local dev_channel_param = device_channel
-    local dev_chan = dev_channel_param > 1 and (dev_channel_param - 1) or msg.ch
 
-    local out_ch_param = interface_channel
-    local out_ch = out_ch_param > 1 and (out_ch_param - 1) or msg.ch
+    local in_chan = get_channel_value(input_channel, msg.ch)
+    local out_ch = get_channel_value(output_channel, msg.ch)
 
     -- should data target all ports
     local target_all = device_target == 1 
 
-    if msg and msg.ch == dev_chan then
+    if msg and msg.ch == in_chan then
         -- get scale stored in scales object
         local scale = pt_core.scales[origin]
         if target_all then
@@ -160,16 +172,9 @@ pt_core.device_event = function(origin, device_target, device_channel, interface
     end
 end
 
-pt_core.root_note_formatter = function(value)
-  return MusicUtil.note_num_to_name(value)
-end
-
-pt_core.user_device_event = function(data)
-  print('>> user-device-event <<')
-end
-
-pt_core.user_interface_event = function(data)
-  print('>> user-interface-event <<')
+pt_core.user_event = function(data, origin)
+    -- local msg = midi.to_msg(data)
+    -- print(origin.port .. ' ' .. origin.name .. ' ' .. msg.type)
 end
 
 return pt_core

@@ -1,22 +1,13 @@
-local Passthrough = include("lib/passthrough")
+local Passthrough = require 'passthrough/lib/mod'
 
-local function device_event()
-  print('user-device-event')
-end
-
-local function interface_event()
-  print('user-interface-event')
+function midi_event(data, origin)
+    local msg = midi.to_msg(data)
+    print(origin.port .. ' ' .. origin.name .. ' ' .. msg.type)
 end
 
 function init()
-    Passthrough.init()
-    Passthrough.user_interface_event = interface_event
-    Passthrough.user_device_event = device_event
+    Passthrough.user_event = midi_event
 end
 
 function redraw()
-end
-
-function rerun() 
-    norns.script.load(norns.state.script)
 end
