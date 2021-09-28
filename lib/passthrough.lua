@@ -12,16 +12,13 @@
 
 local Passthrough = {}
 local tab = require "tabutil"
-local MusicUtil = require "musicutil"
+local core = require("passthrough/lib/core")
 local devices = {}
 local midi_device
 local midi_interface
 local clock_device
 local quantize_midi
-local scale_names = {}
 local current_scale = {}
-local midi_notes = {}
-local cc_directions = {"D --> I", "D <--> I"}
 
 function Passthrough.user_device_event(data)
 end
@@ -29,99 +26,30 @@ end
 function Passthrough.user_interface_event(data)
 end
 
-function Passthrough.device_event(data)
-    if #data == 0 then
-        return
-    end
-    local msg = midi.to_msg(data)
-    local dev_channel_param = params:get("device_channel")
-    local dev_chan = dev_channel_param > 1 and (dev_channel_param - 1) or msg.ch
-
-    local out_ch_param = params:get("interface_channel")
-    local out_ch = out_ch_param > 1 and (out_ch_param - 1) or msg.ch
-
-    if msg and msg.ch == dev_chan then
-        local note = msg.note
-
-        if msg.note ~= nil then
-            if quantize_midi == true then
-                note = MusicUtil.snap_note_to_array(note, current_scale)
-            end
-        end
-
-        if msg.type == "note_off" then
-            midi_interface:note_off(note, 0, out_ch)
-        elseif msg.type == "note_on" then
-            midi_interface:note_on(note, msg.vel, out_ch)
-        elseif msg.type == "key_pressure" then
-            midi_interface:key_pressure(note, msg.val, out_ch)
-        elseif msg.type == "channel_pressure" then
-            midi_interface:channel_pressure(msg.val, out_ch)
-        elseif msg.type == "pitchbend" then
-            midi_interface:pitchbend(msg.val, out_ch)
-        elseif msg.type == "program_change" then
-            midi_interface:program_change(msg.val, out_ch)
-        elseif msg.type == "cc" then
-            midi_interface:cc(msg.cc, msg.val, out_ch)
-        end
-    end
-
+function device_event(data)
+    core.device_event(midi_interface, params:get("device_channel"), params:get("interface_channel"), quantize_midi, current_scale, data)
     Passthrough.user_device_event(data)
 end
 
-function Passthrough.interface_event(data)
-    local msg = midi.to_msg(data)
-    local note = msg.note
-
-    if clock_device then
-        if msg.type == "clock" then
-            midi_device:clock()
-        elseif msg.type == "start" then
-            midi_device:start()
-        elseif msg.type == "stop" then
-            midi_device:stop()
-        elseif msg.type == "continue" then
-            midi_device:continue()
-        end
-    end
-    if params:get("cc_direction") == 2 then
-        local dev_channel_param = params:get("device_channel")
-        local dev_chan = dev_channel_param > 1 and (dev_channel_param - 1) or msg.ch
-
-        if msg.type == "cc" then
-            midi_device:cc(msg.cc, msg.val, dev_chan)
-        end
-    end
-
+function interface_event(data)
+    core.interface_event(midi_device, params:get("device_channel"), params:get("clock_device"), params:get("cc_direction"), data)
     Passthrough.user_interface_event(data)
 end
 
-function Passthrough.build_scale()
-    current_scale = MusicUtil.generate_scale_of_length(params:get("root_note"), params:get("scale_mode"), 128)
-end
-
-function Passthrough.get_midi_devices()
-    d = {}
-    for id, device in pairs(midi.vports) do
-        d[id] = device.name
-    end
-    return d
+function build_scale()
+    current_scale = core.build_scale(params:get("root_note"), params:get("scale_mode"))
 end
 
 function Passthrough.init()
-    for i = 1, #MusicUtil.SCALES do
-        table.insert(scale_names, string.lower(MusicUtil.SCALES[i].name))
-    end
-
     clock_device = false
     quantize_midi = false
 
     midi_device = midi.connect(1)
-    midi_device.event = Passthrough.device_event
+    midi_device.event = device_event
     midi_interface = midi.connect(2)
-    midi_interface.event = Passthrough.interface_event
+    midi_interface.event = interface_event
 
-    devices = Passthrough.get_midi_devices()
+    devices = core.get_midi_devices()
 
     params:add_group("PASSTHROUGH", 9)
     params:add {
@@ -133,7 +61,7 @@ function Passthrough.init()
         action = function(value)
             midi_device.event = nil
             midi_device = midi.connect(value)
-            midi_device.event = Passthrough.device_event
+            midi_device.event = device_event
         end
     }
 
@@ -146,7 +74,7 @@ function Passthrough.init()
         action = function(value)
             midi_interface.event = nil
             midi_interface = midi.connect(value)
-            midi_interface.event = Passthrough.interface_event
+            midi_interface.event = interface_event
         end
     }
 
@@ -154,28 +82,23 @@ function Passthrough.init()
         type = "option",
         id = "cc_direction",
         name = "CC msg direction",
-        options = cc_directions,
+        options = core.cc_directions,
         default = 1
     }
 
-    local channels = {"No change"}
-    for i = 1, 16 do
-        table.insert(channels, i)
-    end
     params:add {
         type = "option",
         id = "device_channel",
         name = "Device channel",
-        options = channels,
+        options = core.device_channels,
         default = 1
     }
 
-    channels[1] = "Device src."
     params:add {
         type = "option",
         id = "interface_channel",
         name = "Interface channel",
-        options = channels,
+        options = core.interface_channels,
         default = 1
     }
 
@@ -183,7 +106,7 @@ function Passthrough.init()
         type = "option",
         id = "clock_device",
         name = "Clock device",
-        options = {"no", "yes"},
+        options = core.toggles,
         action = function(value)
             clock_device = value == 2
             if value == 1 then
@@ -196,10 +119,10 @@ function Passthrough.init()
         type = "option",
         id = "quantize_midi",
         name = "Quantize",
-        options = {"no", "yes"},
+        options = core.toggles,
         action = function(value)
             quantize_midi = value == 2
-            Passthrough.build_scale()
+            build_scale()
         end
     }
 
@@ -207,11 +130,9 @@ function Passthrough.init()
         type = "option",
         id = "scale_mode",
         name = "Scale",
-        options = scale_names,
+        options = core.scale_names,
         default = 5,
-        action = function()
-            Passthrough.build_scale()
-        end
+        action = build_scale
     }
 
     params:add {
@@ -221,12 +142,10 @@ function Passthrough.init()
         min = 0,
         max = 11,
         default = 0,
-        formatter = function(param)
-            return MusicUtil.note_num_to_name(param:get())
+        formatter = function(param) 
+        return core.root_note_formatter(param:get())
         end,
-        action = function()
-            Passthrough.build_scale()
-        end
+        action = build_scale
     }
 
     -- expose device and interface connections
