@@ -1,10 +1,10 @@
 local mod = require 'core/mods'
 
 local core = require("passthrough/lib/core")
+local utils = require("passthrough/lib/utils")
 local tab = require "tabutil"
 
 local api = {}
-local clock_messages = {"clock", "start", "stop", "continue"}
 local config = {}
 local state = {}
 
@@ -22,7 +22,7 @@ end
 
 _norns.midi.remove = function(id)
   midi_remove(id)
-  update_devices()
+  launch_passthrough()
 end
 
 _norns.midi.connect = function(id)
@@ -31,7 +31,7 @@ end
 
 norns.script.clear = function()
   script_clear()
-  launch_passthrough()
+  update_devices()
 end
 
 -- STATE FUNCTIONS --
@@ -39,12 +39,16 @@ function write_state()
   local f = io.open(_path.data..'passthrough.state',"w+")
   io.output(f)
   io.write("return {")
-  for i =1, tab.count(state) do
-    local port_config = state[i]
-    if i~=1 then
+  local counter = 0
+  for k, v in pairs(state) do
+    counter = counter + 1
+    local port_config = state[k]
+    if counter~=1 then
       io.write(",")
     end
-    io.write("{ target="..port_config.target..",")
+    io.write('['..k..'] =')
+    io.write("{ dev_port="..port_config.dev_port..",")
+    io.write("target="..port_config.target..",")
     io.write("input_channel="..port_config.input_channel..",")
     io.write("output_channel="..port_config.output_channel..",")
     io.write("send_clock="..port_config.send_clock..",")
@@ -81,7 +85,7 @@ end
 -- HOOKS --
 mod.hook.register("system_post_startup", "read passthrough state", function()
   read_state()
-  launch_passthrough()
+  update_devices()
 end)
 
 mod.hook.register("system_pre_shutdown", "write passthrough state", function()
@@ -89,8 +93,7 @@ mod.hook.register("system_pre_shutdown", "write passthrough state", function()
 end)
 
 mod.hook.register("script_post_cleanup", "passthrough post cleanup", function()
-  launch_passthrough()
-  api.user_event = core.user_event
+  update_devices()
 end)
 
 mod.hook.register("script_pre_init", "passthrough", function()
@@ -99,7 +102,7 @@ mod.hook.register("script_pre_init", "passthrough", function()
   
   init = function()
       script_init()
-      launch_passthrough()
+      update_devices()
   end
 end)
 
@@ -107,11 +110,12 @@ end)
 -- ACTIONS + EVENTS --
 function create_config()
   local config={}
-  for port = 1, tab.count(core.midi_ports) do
+  for k, v in pairs(core.midi_ports) do
     -- if no state exists for this port, create a new one
-    if state[port] == nil then
-      print('no state saved for port, adding defaults')
-      state[port] = {
+    if state[k] == nil then
+      print('No state saved for port, adding defaults')
+      state[k] = {
+        dev_port = v.port,
         target = 1,
         input_channel = 1,
         output_channel = 1,
@@ -120,23 +124,30 @@ function create_config()
         current_scale = 1,
         root_note = 0
       }
+    else
+      state[k].dev_port = v.port
     end
     
     -- config creates an object for each passthru parameter
-    config[port] = {
+    config[k] = {
       target = {
         param_type = "option",
         id = "target",
         name = "Target",
         options = core.available_targets,
         action = function(value)
-          local existing_event = core.midi_connections[port].event
-          core.midi_connections[port].event = function(data) 
-            device_event(data, port)
+          core.midi_connections[k].connect.event = function(data) 
+            device_event(data, k)
           end
+          
+          core.port_connections[v.port] = core.get_target_connections(v.port, value)
         end,
         formatter = function(value)
-          return value == 1 and core.available_targets[value] or core.midi_ports[value-1]
+          if value == 1 then return core.available_targets[value] end
+          found_port = utils.table_find_value(core.midi_ports, function(key, val) return val.port == value - 1 end)
+            
+          if found_port then return found_port.name end
+          return "Saved port unconnected"
         end
       },
       input_channel = {
@@ -158,7 +169,7 @@ function create_config()
         options = core.toggles,
         action = function(value)
             if value == 1 then
-                core.stop_clocks(origin, state[port].target)
+                core.stop_clocks(v.port)
             end
         end
         },
@@ -176,7 +187,7 @@ function create_config()
         maximum = 11,
         formatter = core.root_note_formatter,
         action = function()
-            core.build_scale(state[port].root_note, state[port].current_scale, port)
+            core.build_scale(state[k].root_note, state[k].current_scale, k)
         end
       },
       current_scale = {
@@ -185,14 +196,14 @@ function create_config()
           name = 'Scale',
           options = core.scale_names,
           action = function()
-            core.build_scale(state[port].root_note, state[port].current_scale, port)
+            core.build_scale(state[k].root_note, state[k].current_scale, k)
           end
         }
     }
 
-    config[port].target.action(state[port].target)
-    config[port].root_note.action(state[port].root_note, state[port].current_scale, port)
-    config[port].current_scale.action(state[port].root_note, state[port].current_scale, port)
+    config[k].target.action(state[k].target)
+    config[k].root_note.action(state[k].root_note, state[k].current_scale, k)
+    config[k].current_scale.action(state[k].root_note, state[k].current_scale, k)
   end
 
   return config
@@ -209,9 +220,9 @@ function device_event(data, origin)
       state[origin].current_scale,
       data)
 
-    -- filter unwanted clock events
-    if state[origin].send_clock == 1 and #data and tab.contains(clock_messages, midi.to_msg(data).type) then return end
-    api.user_event(data, {name= core.midi_ports[origin], port= origin})
+    device = core.midi_ports[origin]
+    
+    api.user_event(data, {name=device.name,port=device.port})
 end
 
 function update_devices() 
@@ -289,6 +300,7 @@ end
 
 m.enc = function(n, d)
   m.show_hint = false
+  
   if n == 2 then
     if m.pos == 0 and d == -1 then
       m.show_hint = true
@@ -335,7 +347,7 @@ m.redraw = function()
   screen.fill()
   screen.level(15)
   screen.move(120, 10)
-  screen.text_right(string.upper(core.midi_ports[m.page]))
+  screen.text_right(string.upper(core.midi_ports[m.page].name))
   if m.show_hint then
     screen.level(2)
     screen.move(0, 20)
@@ -352,7 +364,7 @@ m.init = function()
   m.page = 1
   m.pos = 0
   m.show_hint=true
-  launch_passthrough()
+  update_devices()
 end
 
 m.deinit = function() 

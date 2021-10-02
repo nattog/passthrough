@@ -1,8 +1,7 @@
 -- passthrough
 --
 -- library for passing midi
--- from device to an interface
--- + clock/cc from interface
+-- between connected ports
 -- + scale quantizing
 -- + user event callbacks
 --
@@ -11,29 +10,29 @@
 -- PRs welcome
 
 local Passthrough = {}
-local tab = require "tabutil"
 local core = require("passthrough/lib/core")
-local devices = {}
-local midi_device
-local midi_interface
-local clock_device
-local quantize_midi
-local current_scale = {}
+local utils = require('passthrough/lib/util')
 
-function Passthrough.user_device_event(data)
-end
+local tab = require "tabutil"
+local mod = require 'core/mods'
 
-function Passthrough.user_interface_event(data)
-end
+Passthrough.user_event = core.user_event
+  
 
-function device_event(data)
-    core.device_event(midi_interface, params:get("device_channel"), params:get("interface_channel"), quantize_midi, current_scale, data)
-    Passthrough.user_device_event(data)
-end
+function device_event(data, origin)
+    core.device_event(
+      origin,
+      params:get('target_'..origin),
+      params:get('input_channel_'..origin),
+      params:get('output_channel_'..origin),
+      params:get('send_clock_'..origin),
+      params:get('quantize_midi_'..origin),
+      params:get('current_scale_'..origin),
+      data)
 
-function interface_event(data)
-    core.interface_event(midi_device, params:get("device_channel"), params:get("clock_device"), params:get("cc_direction"), data)
-    Passthrough.user_interface_event(data)
+    device = core.midi_ports[origin]
+    
+    Passthrough.user_event(data, {name=device.name,port=device.port})
 end
 
 function build_scale()
@@ -41,116 +40,97 @@ function build_scale()
 end
 
 function Passthrough.init()
-    clock_device = false
-    quantize_midi = false
+  if tab.contains(mod.loaded_mod_names(), 'passthrough') then 
+    print('Passthrough already running as mod')
+    return 
+  end
 
-    midi_device = midi.connect(1)
-    midi_device.event = device_event
-    midi_interface = midi.connect(2)
-    midi_interface.event = interface_event
-
-    devices = core.get_midi_devices()
-
-    params:add_group("PASSTHROUGH", 9)
-    params:add {
-        type = "option",
-        id = "midi_device",
-        name = "Device",
-        options = devices,
+  core.setup_midi()
+  
+  core_length = tab.count(core.midi_ports)
+  params:add_group("PASSTHROUGH", 8*core_length)
+  
+  for k, v in pairs(core.midi_ports) do
+      params:add_separator(v.name)
+      
+      params:add {
+        type="number",
+        id='target_' .. v.port,
+        name = "Target",
+        min=1,
+        max = #core.available_targets,
         default = 1,
         action = function(value)
-            midi_device.event = nil
-            midi_device = midi.connect(value)
-            midi_device.event = device_event
-        end
-    }
-
-    params:add {
+          core.midi_connections[k].connect.event = function(data) 
+            device_event(data, k)
+          end
+          core.port_connections[v.port] = core.get_target_connections(v.port, value)
+        end,
+        formatter = function(param)
+          value = param:get()
+          if value == 1 then 
+            return core.available_targets[value] 
+          else
+            found_port = utils.table_find_value(core.midi_ports, function(key, val) return val.port == value - 1 end)
+            if found_port then return found_port.name end
+            return "Saved port unconnected"
+          end
+        end,
+      }
+      
+      params:add {
         type = "option",
-        id = "midi_interface",
-        name = "Interface",
-        options = devices,
-        default = 2,
-        action = function(value)
-            midi_interface.event = nil
-            midi_interface = midi.connect(value)
-            midi_interface.event = interface_event
-        end
-    }
-
-    params:add {
+        id = "input_channel_"..v.port,
+        name = "Input channel",
+        options = core.input_channels
+      }
+      params:add {
         type = "option",
-        id = "cc_direction",
-        name = "CC msg direction",
-        options = core.cc_directions,
-        default = 1
-    }
-
-    params:add {
+        id = "output_channel_"..v.port,
+        name = "Output channel",
+        options = core.output_channels
+      }
+      params:add {
         type = "option",
-        id = "device_channel",
-        name = "Device channel",
-        options = core.device_channels,
-        default = 1
-    }
-
-    params:add {
-        type = "option",
-        id = "interface_channel",
-        name = "Interface channel",
-        options = core.interface_channels,
-        default = 1
-    }
-
-    params:add {
-        type = "option",
-        id = "clock_device",
-        name = "Clock device",
+        id = "send_clock_"..v.port,
+        name = "Clock out",
         options = core.toggles,
         action = function(value)
-            clock_device = value == 2
             if value == 1 then
-                midi_device:stop()
+                core.stop_clocks(v.port)
             end
         end
-    }
-
-    params:add {
+      }
+      params:add {
         type = "option",
-        id = "quantize_midi",
-        name = "Quantize",
-        options = core.toggles,
-        action = function(value)
-            quantize_midi = value == 2
-            build_scale()
-        end
-    }
-
-    params:add {
-        type = "option",
-        id = "scale_mode",
-        name = "Scale",
-        options = core.scale_names,
-        default = 5,
-        action = build_scale
-    }
-
-    params:add {
-        type = "number",
-        id = "root_note",
+        id = "quantize_midi_"..v.port,
+        name = 'Quantize midi',
+        options = core.toggles
+      }
+      params:add {
+        type = 'number',
+        id = 'root_note_'..v.port,
         name = "Root",
-        min = 0,
-        max = 11,
-        default = 0,
-        formatter = function(param) 
-        return core.root_note_formatter(param:get())
+        minimum = 0,
+        maximum = 11,
+        formatter =  function(param) 
+          return core.root_note_formatter(param:get())
         end,
-        action = build_scale
-    }
-
-    -- expose device and interface connections
-    Passthrough.device = midi_device
-    Passthrough.interface = midi_interface
+        action = function()
+            core.build_scale(params:get('root_note_'..v.port), params:get('current_scale_'..v.port), k)
+        end
+      }
+      params:add {
+          type = 'option',
+          id = 'current_scale_'..v.port,
+          name = 'Scale',
+          options = core.scale_names,
+          action = function()
+            core.build_scale(params:get('root_note_'..v.port), params:get('current_scale_'..v.port), k)
+          end
+        }
+  end
+  params:bang()
 end
 
 return Passthrough

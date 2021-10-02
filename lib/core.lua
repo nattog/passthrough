@@ -1,5 +1,6 @@
 local MusicUtil = require "musicutil"
 local pt_core = {}
+local utils = require("passthrough/lib/utils")
 
 pt_core.midi_panic_active = false
 pt_core.input_channels = {"No change"}
@@ -11,9 +12,11 @@ pt_core.available_targets = {}
 pt_core.scales = {}
 local active_notes = {}
 
+pt_core.port_connections = {}
+
 -- UTIL --
-local function get_channel_value(channel_param_value, msg_channel)
-    local channel_param= channel_param_value
+local function get_midi_channel_value(channel_param_value, msg_channel)
+    local channel_param = channel_param_value
     return channel_param > 1 and (channel_param - 1) or msg_channel
 end
 
@@ -33,15 +36,39 @@ for i = 1, 16 do
     table.insert(pt_core.output_channels, i)
 end
 
+pt_core.get_target_connections = function(origin, selection) 
+  local t = {}
+  
+  -- SELECT ALL PORTS
+  if selection == 1 then
+    for k, v in pairs(pt_core.midi_connections) do
+      if v.port ~= origin then
+        table.insert(t, v.connect)  
+      end
+    end
+    
+    return t
+  else
+    -- SINGLE PORT - still create iterable for ease
+    local port_target = pt_core.midi_ports[selection - 1].port
+    if origin ~= port_target then
+      local mc = utils.table_find_value(pt_core.midi_connections, function(k, v) return v.port == port_target end)
+      if mc then table.insert(t, mc.connect) end
+    end
+  end
+  
+  return t
+end
+
 pt_core.setup_midi = function()
     local midi_ports={}
     local midi_connections = {}
     local available_targets = {"all"}
+
     for _,dev in pairs(midi.devices) do
         if dev.port~=nil then
-            table.insert(midi_ports,dev.name)
-            local conn=midi.connect(dev.port)
-            table.insert(midi_connections, conn)
+            table.insert(midi_ports, {name=dev.name, port=dev.port})
+            table.insert(midi_connections, {connect= midi.connect(dev.port), port=dev.port})
         end
     end
 
@@ -53,9 +80,7 @@ pt_core.setup_midi = function()
     pt_core.available_targets = available_targets
 end
 
-pt_core.root_note_formatter = function(value)
-    return MusicUtil.note_num_to_name(value)
-end
+pt_core.root_note_formatter = MusicUtil.note_num_to_name
 
 -- EVENTS ON MENU CHANGE --
 pt_core.remove_active_note = function(target, note, ch)
@@ -68,17 +93,11 @@ pt_core.remove_active_note = function(target, note, ch)
     end
 end
 
-pt_core.stop_clocks = function(origin, device_target)
-    local target_all = device_target == 1
+pt_core.stop_clocks = function(origin)
     local msg = {type="stop"}
-    if target_all then
-        for target = 1, #pt_core.midi_ports do
-            if origin ~= target then
-                pt_core.handle_clock_data(msg, pt_core.midi_connections[target])
-            end
-        end
-    elseif origin ~= device_target then
-            pt_core.handle_clock_data(msg, pt_core.midi_connections[device_target -1])
+    local connections = pt_core.port_connections[origin]
+    for k, v in pairs(connections) do
+      pt_core.handle_clock_data(msg, v)
     end
 end
 
@@ -137,44 +156,31 @@ pt_core.device_event = function(origin, device_target, input_channel, output_cha
         print('no data')
         return
     end
+    
     local msg = midi.to_msg(data)
 
-    local in_chan = get_channel_value(input_channel, msg.ch)
-    local out_ch = get_channel_value(output_channel, msg.ch)
-
-    -- should data target all ports
-    local target_all = device_target == 1 
+    local connections = pt_core.port_connections[origin]
+    
+    local in_chan = get_midi_channel_value(input_channel, msg.ch)
+    local out_ch = get_midi_channel_value(output_channel, msg.ch)
 
     if msg and msg.ch == in_chan then
         -- get scale stored in scales object
         local scale = pt_core.scales[origin]
-        if target_all then
-            for target = 1, #pt_core.midi_ports do
-                if origin ~= target then
-                    pt_core.handle_midi_data(msg, pt_core.midi_connections[target], out_ch, quantize_midi, scale)
-                end
-            end
-        elseif origin ~= device_target then
-            pt_core.handle_midi_data(msg, pt_core.midi_connections[device_target - 1], out_ch, quantize_midi, scale)
+        
+        for k, v in pairs(connections) do
+          pt_core.handle_midi_data(msg, v, out_ch, quantize_midi, scale)
         end
     end
-
+    
     if send_clock then
-        if target_all then
-            for target = 1, #pt_core.midi_ports do
-                if origin ~= target then
-                    pt_core.handle_clock_data(msg, pt_core.midi_connections[target])
-                end
-            end
-        elseif origin ~= device_target then
-                pt_core.handle_clock_data(msg, pt_core.midi_connections[device_target -1])
+        for k, v in pairs(connections) do
+          pt_core.handle_clock_data(msg, v)
         end
     end
 end
 
 pt_core.user_event = function(data, origin)
-    -- local msg = midi.to_msg(data)
-    -- print(origin.port .. ' ' .. origin.name .. ' ' .. msg.type)
 end
 
 return pt_core
