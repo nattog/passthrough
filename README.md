@@ -90,5 +90,5 @@ raise any issues experienced with passthrough either in the thread on [lines](ht
 
 ## contributing
 
-interested in adding a new feature or making changes? any pr is always welcome.
+wishing to add a new feature or make some changes? github pull requests are welcome.
 
