@@ -33,7 +33,7 @@ passthrough is available from the maiden catalogue or by running the following c
 
 ## getting started
 
-for each connected midi device, passthrough assigns it some midi routing settings:
+passthrough assigns some midi routing settings for each connected midi device:
 - `Target` may be all connected devices, or individual ones. this is the destination of incoming midi data 
 - `Input channel` selects which midi channel is listened to for incoming midi data
 - `Output channel` changes outgoing midi data to a specific midi channel, or leaves unchanged
@@ -43,6 +43,7 @@ for each connected midi device, passthrough assigns it some midi routing setting
 - `Scale` sets the scale type (Major, Minor.. )
 - `Midi panic` is a toggle to stop all active notes
 
+there are two example scripts, showing how to interact with passthrough either as a mod or a library. they detail how to include it in scripts so that users can define callbacks on incoming midi data. 
 ### mod
 
 navigate to the mod menu at SYSTEM > MODS, scroll to `PASSTHROUGH` and turn encoder 3 until a `+` symbol appears. restart norns and passthrough is running. when norns is shutdown, the current state of passthrough is saved. When norns is turned back on, it will remember these settings.
@@ -65,7 +66,7 @@ if util.file_exists(_path.code.."passthrough") then
 end
 ```
 
-the installation has been successful if `PASSTHROUGH` appears in the script's params menu.  
+the installation has been successful if `PASSTHROUGH` appears in the script's params menu.
 
 ### user event handling 
 

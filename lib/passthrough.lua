@@ -9,22 +9,22 @@
 
 local Passthrough = {}
 local core = require("passthrough/lib/core")
-local utils = require('passthrough/lib/utils')
+local utils = require("passthrough/lib/utils")
 
 local tab = require "tabutil"
-local mod = require 'core/mods'
+local mod = require "core/mods"
 
 Passthrough.user_event = core.user_event
 
 local function device_event(data, origin)
     core.device_event(
       origin,
-      params:get('target_'..origin),
-      params:get('input_channel_'..origin),
-      params:get('output_channel_'..origin),
-      params:get('send_clock_'..origin),
-      params:get('quantize_midi_'..origin),
-      params:get('current_scale_'..origin),
+      params:get("target_"..origin),
+      params:get("input_channel_"..origin),
+      params:get("output_channel_"..origin),
+      params:get("send_clock_"..origin),
+      params:get("quantize_midi_"..origin),
+      params:get("current_scale_"..origin),
       data)
 
     device = core.midi_ports[origin]
@@ -33,22 +33,22 @@ local function device_event(data, origin)
 end
 
 function Passthrough.init()
-  if tab.contains(mod.loaded_mod_names(), 'passthrough') then 
-    print('Passthrough already running as mod')
+  if tab.contains(mod.loaded_mod_names(), "passthrough") then 
+    print("Passthrough already running as mod")
     return 
   end
 
   core.setup_midi()
   
   core_length = tab.count(core.midi_ports)
-  params:add_group("PASSTHROUGH", 8*core_length)
+  params:add_group("PASSTHROUGH", 8*core_length + 2)
   
   for k, v in pairs(core.midi_ports) do
       params:add_separator(v.name)
       
       params:add {
         type="number",
-        id='target_' .. v.port,
+        id="target_" .. v.port,
         name = "Target",
         min=1,
         max = #core.available_targets,
@@ -58,7 +58,7 @@ function Passthrough.init()
           core.midi_connections[k].connect.event = function(data) 
             if device_event then device_event(data, k) end
             if not device_event then
-              print('no event found')
+              print("no event found")
             end
           end
           core.port_connections[v.port] = core.get_target_connections(v.port, value)
@@ -101,32 +101,42 @@ function Passthrough.init()
       params:add {
         type = "option",
         id = "quantize_midi_"..v.port,
-        name = 'Quantize midi',
+        name = "Quantize midi",
         options = core.toggles
       }
       params:add {
-        type = 'number',
-        id = 'root_note_'..v.port,
+        type = "number",
+        id = "root_note_"..v.port,
         name = "Root",
         minimum = 0,
         maximum = 11,
-        formatter =  function(param) 
+        formatter = function(param) 
           return core.root_note_formatter(param:get())
         end,
         action = function()
-            core.build_scale(params:get('root_note_'..v.port), params:get('current_scale_'..v.port), k)
+            core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), k)
         end
       }
       params:add {
-          type = 'option',
-          id = 'current_scale_'..v.port,
-          name = 'Scale',
+          type = "option",
+          id = "current_scale_"..v.port,
+          name = "Scale",
           options = core.scale_names,
           action = function()
-            core.build_scale(params:get('root_note_'..v.port), params:get('current_scale_'..v.port), k)
+            core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), k)
           end
         }
-  end
+
+      end
+      params:add_separator("All devices")
+      params:add {
+        type = "trigger",
+        id = "midi_panic",
+        name = "Midi panic",
+        action = function()
+          core.stop_all_notes()
+        end
+      }
   
   params:bang()
 end

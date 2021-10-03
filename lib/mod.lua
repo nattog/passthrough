@@ -1,4 +1,4 @@
-local mod = require 'core/mods'
+local mod = require "core/mods"
 
 local core = require("passthrough/lib/core")
 local utils = require("passthrough/lib/utils")
@@ -36,7 +36,7 @@ end
 
 -- STATE FUNCTIONS --
 function write_state()
-  local f = io.open(_path.data..'passthrough.state',"w+")
+  local f = io.open(_path.data.."passthrough.state","w+")
   io.output(f)
   io.write("return {")
   local counter = 0
@@ -46,7 +46,7 @@ function write_state()
     if counter~=1 then
       io.write(",")
     end
-    io.write('['..k..'] =')
+    io.write("["..k.."] =")
     io.write("{ dev_port="..port_config.dev_port..",")
     io.write("target="..port_config.target..",")
     io.write("input_channel="..port_config.input_channel..",")
@@ -61,10 +61,10 @@ function write_state()
 end
 
 function read_state() 
-  local f = io.open(_path.data..'passthrough.state')
+  local f = io.open(_path.data.."passthrough.state")
   if f ~= nil then
     io.close(f)
-    state = dofile(_path.data..'passthrough.state')
+    state = dofile(_path.data.."passthrough.state")
   end
 
   for i = 1, tab.count(state) do
@@ -113,7 +113,7 @@ function create_config()
   for k, v in pairs(core.midi_ports) do
     -- if no state exists for this port, create a new one
     if state[k] == nil then
-      print('No state saved for port, adding defaults')
+      print("No state saved for port, adding defaults")
       state[k] = {
         dev_port = v.port,
         target = 1,
@@ -176,12 +176,12 @@ function create_config()
       quantize_midi = {
         param_type = "option",
         id = "quantize_midi",
-        name = 'Quantize midi',
+        name = "Quantize midi",
         options = core.toggles
       },
       root_note = {
-        param_type = 'number',
-        id = 'root_note',
+        param_type = "number",
+        id = "root_note",
         name = "Root",
         minimum = 0,
         maximum = 11,
@@ -191,9 +191,9 @@ function create_config()
         end
       },
       current_scale = {
-          param_type = 'option',
-          id = 'current_scale',
-          name = 'Scale',
+          param_type = "option",
+          id = "current_scale",
+          name = "Scale",
           options = core.scale_names,
           action = function()
             core.build_scale(state[k].root_note, state[k].current_scale, k)
@@ -242,11 +242,11 @@ function update_parameter(p, index, dir)
   end
 
   -- generate scale
-  if p.param_type == 'number' then
+  if p.param_type == "number" then
     state[index][p.id] = util.clamp(state[index][p.id] + dir, p.minimum, p.maximum)
   end
 
-  if p.action and type(p.action == 'function') then
+  if p.action and type(p.action == "function") then
     p.action(state[index][p.id])
   end
 
@@ -254,7 +254,7 @@ function update_parameter(p, index, dir)
 end
 
 function format_parameter(p, index) 
-  if p.formatter and type(p.formatter == 'function') then
+  if p.formatter and type(p.formatter == "function") then
     return p.formatter(state[index][p.id])
   end
 
@@ -267,7 +267,7 @@ end
 
 
 -- MOD MENU --
-local screen_order = {"target", "input_channel", "output_channel", "send_clock", 'quantize_midi', 'root_note', 'current_scale', 'midi_panic'}
+local screen_order = {"target", "input_channel", "output_channel", "send_clock", "quantize_midi", "root_note", "current_scale", "midi_panic"}
 local m = {
   list=screen_order,
   pos=0,
@@ -309,7 +309,7 @@ m.enc = function(n, d)
   end
 
   if n == 3 then
-    if m.list[m.pos+1] == 'midi_panic' then
+    if m.list[m.pos+1] == "midi_panic" then
       core.stop_all_notes()
       toggle_display_panic()
     else
@@ -331,7 +331,7 @@ m.redraw = function()
         screen.level(4)
       end
 
-      if line == 'midi_panic' then
+      if line == "midi_panic" then
         screen.text("Midi panic : ")
         screen.rect(50, (10*i)-4.5, 5, 5)
         screen.level(m.display_panic and 15 or 4)
@@ -351,9 +351,9 @@ m.redraw = function()
   if m.show_hint then
     screen.level(2)
     screen.move(0, 20)
-    screen.text('E2 scroll')
+    screen.text("E2 scroll")
     screen.move(120, 20)
-    screen.text_right('E3 select')
+    screen.text_right("E3 select")
     screen.move(0, 10)
     screen.text("K3 port")
   end

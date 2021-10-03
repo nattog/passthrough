@@ -13,19 +13,19 @@ utils.table_find_value = function(t, condition)
 end
 
 utils.examples_get_screen_text = function(datum_type)
-  if datum_type == 'program_change' then
+  if datum_type == "program_change" then
     return "!"
-  elseif datum_type == 'note_on' then
-    return '"'
-  elseif datum_type == 'note_off' then
-    return '.'
-  elseif datum_type == 'cc' then
+  elseif datum_type == "note_on" then
+    return ">"
+  elseif datum_type == "note_off" then
+    return "."
+  elseif datum_type == "cc" then
     return "<"
   elseif datum_type =="channel_pressure" then
     return "%"
-  elseif datum_type =='pitchbend' then
+  elseif datum_type =="pitchbend" then
     return "~"
-  elseif datum_type == 'key_pressure' then
+  elseif datum_type == "key_pressure" then
     return "&"
   else
     return "-"
@@ -33,7 +33,13 @@ utils.examples_get_screen_text = function(datum_type)
 end
 
 utils.examples_start_screen_datum = function (datum)
-  local screen_datum = {type = datum.type, repeat_timer = 24, x = math.random(128), y = 15 * datum.port, text = utils.examples_get_screen_text(datum.type) }
+  local screen_datum = {
+                        type = datum.type, 
+                        repeat_timer = 24, 
+                        x = math.random(128), 
+                        y = 15 * datum.port, 
+                        text = utils.examples_get_screen_text(datum.type) 
+                      }
   screen_data[data_counter] = screen_datum
   data_counter = util.wrap(data_counter, 1, 8)
 end

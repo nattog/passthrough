@@ -153,7 +153,7 @@ end
 
 pt_core.device_event = function(origin, device_target, input_channel, output_channel, send_clock, quantize_midi, current_scale, data)
     if #data == 0 then
-        print('no data')
+        print("no data")
         return
     end
     

@@ -10,8 +10,8 @@ local utils = require 'passthrough/lib/utils'
 -- data is your midi, origin lets you know where it comes from
 function user_midi_event(data, origin)
     local msg = midi.to_msg(data)
+    -- do something with your data
     if msg.type ~= 'clock' then
-      -- do something with your data
       utils.examples_start_screen_datum({type = msg.type, port = origin.port})
     end
 end
