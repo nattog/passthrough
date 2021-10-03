@@ -41,7 +41,8 @@ passthrough assigns some midi routing settings for each connected midi device:
 - `Quantize midi` wraps note data to scales (quantization is set per connected midi device, so different scales can be used if desired)
 - `Root` sets the root note of the current scale
 - `Scale` sets the scale type (Major, Minor.. )
-- `Midi panic` is a toggle to stop all active notes
+
+additionally, `Midi panic` is a toggle to stop all active notes if some notes are hanging.
 
 there are two example scripts, showing how to interact with passthrough either as a mod or a library. they detail how to include it in scripts so that users can define callbacks on incoming midi data. 
 ### mod
