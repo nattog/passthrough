@@ -68,7 +68,7 @@ function read_state()
   end
 
   for i = 1, tab.count(state) do
-    core.build_scale(state[i].root_note, state[i].current_scale, i)
+    core.build_scale(state[i].root_note, state[i].current_scale, state[i].dev_port)
   end
 end
 

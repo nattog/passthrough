@@ -115,7 +115,7 @@ pt_core.handle_midi_data = function(msg, target, out_ch, quantize_midi, current_
     local note = msg.note
 
     if note ~= nil then
-        if quantize_midi then
+        if quantize_midi == 2 then
             note = MusicUtil.snap_note_to_array(note, current_scale)
         end
     end
