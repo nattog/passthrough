@@ -5,21 +5,18 @@
 -- + scale quantizing
 -- + user event callbacks
 --
--- for how to use see example
---
--- PRs welcome
+-- for how to use see example script
 
 local Passthrough = {}
 local core = require("passthrough/lib/core")
-local utils = require('passthrough/lib/util')
+local utils = require('passthrough/lib/utils')
 
 local tab = require "tabutil"
 local mod = require 'core/mods'
 
 Passthrough.user_event = core.user_event
-  
 
-function device_event(data, origin)
+local function device_event(data, origin)
     core.device_event(
       origin,
       params:get('target_'..origin),
@@ -33,10 +30,6 @@ function device_event(data, origin)
     device = core.midi_ports[origin]
     
     Passthrough.user_event(data, {name=device.name,port=device.port})
-end
-
-function build_scale()
-    current_scale = core.build_scale(params:get("root_note"), params:get("scale_mode"))
 end
 
 function Passthrough.init()
@@ -61,8 +54,12 @@ function Passthrough.init()
         max = #core.available_targets,
         default = 1,
         action = function(value)
+          core.midi_connections[k].connect.event = nil
           core.midi_connections[k].connect.event = function(data) 
-            device_event(data, k)
+            if device_event then device_event(data, k) end
+            if not device_event then
+              print('no event found')
+            end
           end
           core.port_connections[v.port] = core.get_target_connections(v.port, value)
         end,
@@ -130,6 +127,7 @@ function Passthrough.init()
           end
         }
   end
+  
   params:bang()
 end
 
