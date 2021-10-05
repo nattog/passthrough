@@ -16,19 +16,17 @@ local mod = require "core/mods"
 
 Passthrough.user_event = core.user_event
 
-local function device_event(data, origin)
+local function device_event(data, device)
     core.device_event(
-      origin,
-      params:get("target_"..origin),
-      params:get("input_channel_"..origin),
-      params:get("output_channel_"..origin),
-      params:get("send_clock_"..origin),
-      params:get("quantize_midi_"..origin),
-      params:get("current_scale_"..origin),
+      device.port,
+      params:get("target_"..device.port),
+      params:get("input_channel_"..device.port),
+      params:get("output_channel_"..device.port),
+      params:get("send_clock_"..device.port)==2,
+      params:get("quantize_midi_"..device.port),
+      params:get("current_scale_"..device.port),
       data)
 
-    device = core.midi_ports[origin]
-    
     Passthrough.user_event(data, {name=device.name,port=device.port})
 end
 
@@ -40,12 +38,13 @@ function Passthrough.init()
 
   core.setup_midi()
   
-  core_length = tab.count(core.midi_ports)
-  params:add_group("PASSTHROUGH", 8*core_length + 2)
+  port_amount = tab.count(core.midi_connections)
+  params:add_group("PASSTHROUGH", 8*port_amount + 2)
   
-  for k, v in pairs(core.midi_ports) do
-      params:add_separator(v.name)
-      
+  for k, v in pairs(core.midi_connections) do
+      local name = utils.table_find_value(core.midi_ports, function(key, value) return value.port == v.port end).name
+      params:add_separator(name .. ' ' .. v.port)
+
       params:add {
         type="number",
         id="target_" .. v.port,
@@ -54,9 +53,11 @@ function Passthrough.init()
         max = #core.available_targets,
         default = 1,
         action = function(value)
-          core.midi_connections[k].connect.event = nil
-          core.midi_connections[k].connect.event = function(data) 
-            if device_event then device_event(data, k) end
+          connector = utils.table_find_value(core.midi_connections, function(key, val) return val.port == v.port end)
+          connector.connect.event = nil
+          connector.connect.event = function(data) 
+            device = utils.table_find_value(core.midi_ports, function(key, val) return val.port == v.port end)
+            if device_event then device_event(data, device) end
             if not device_event then
               print("no event found")
             end
@@ -92,6 +93,7 @@ function Passthrough.init()
         id = "send_clock_"..v.port,
         name = "Clock out",
         options = core.toggles,
+        default=1,
         action = function(value)
             if value == 1 then
                 core.stop_clocks(v.port)
@@ -114,7 +116,7 @@ function Passthrough.init()
           return core.root_note_formatter(param:get())
         end,
         action = function()
-            core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), k)
+            core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), v.port)
         end
       }
       params:add {
@@ -123,7 +125,7 @@ function Passthrough.init()
           name = "Scale",
           options = core.scale_names,
           action = function()
-            core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), k)
+            core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), v.port)
           end
         }
 

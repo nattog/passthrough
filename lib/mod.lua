@@ -137,7 +137,7 @@ function create_config()
         options = core.available_targets,
         action = function(value)
           core.midi_connections[k].connect.event = function(data) 
-            device_event(data, k)
+            device_event(data, v.port)
           end
           
           core.port_connections[v.port] = core.get_target_connections(v.port, value)

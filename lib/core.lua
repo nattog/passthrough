@@ -38,7 +38,7 @@ end
 
 pt_core.get_target_connections = function(origin, selection) 
   local t = {}
-  
+
   -- SELECT ALL PORTS
   if selection == 1 then
     for k, v in pairs(pt_core.midi_connections) do
@@ -46,7 +46,7 @@ pt_core.get_target_connections = function(origin, selection)
         table.insert(t, v.connect)  
       end
     end
-    
+
     return t
   else
     -- SINGLE PORT - still create iterable for ease
@@ -71,6 +71,9 @@ pt_core.setup_midi = function()
             table.insert(midi_connections, {connect= midi.connect(dev.port), port=dev.port})
         end
     end
+
+    table.sort(midi_connections, function(a, b) return a.port < b.port end)
+    table.sort(midi_ports, function(a, b) return a.port < b.port end)
 
     pt_core.midi_ports = midi_ports
     pt_core.midi_connections = midi_connections
@@ -160,7 +163,7 @@ pt_core.device_event = function(origin, device_target, input_channel, output_cha
     local msg = midi.to_msg(data)
 
     local connections = pt_core.port_connections[origin]
-    
+
     local in_chan = get_midi_channel_value(input_channel, msg.ch)
     local out_ch = get_midi_channel_value(output_channel, msg.ch)
 
