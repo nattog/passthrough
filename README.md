@@ -95,3 +95,7 @@ raise any issues experienced with passthrough either in the thread on [lines](ht
 
 wishing to contribute a new feature or change? github pull requests are welcome.
 
+## version history
+
+for older versions, check the [releases](https://github.com/nattog/passthrough/releases) in the repo. releases older than v2.0.0 are legacy, and no longer supported for development
+
