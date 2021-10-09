@@ -47,7 +47,7 @@ additionally, `Midi panic` is a toggle to stop all active notes if some notes ar
 there are two example scripts, showing how to interact with passthrough either as a mod or a library. they detail how to include it in scripts so that users can define callbacks on incoming midi data. 
 ### mod
 
-navigate to the mod menu at `SYSTEM > MODS`, scroll to `PASSTHROUGH` and turn encoder 3 until a `+` symbol appears. restart norns and passthrough is running. when norns is shutdown, the current state of passthrough is saved. When norns is turned back on, it will remember these settings.
+navigate to the mod menu at `SYSTEM > MODS`, scroll to `PASSTHROUGH` and turn encoder 3 until a `+` symbol appears. restart norns and passthrough is running. when norns is shutdown, the current state of passthrough is saved. When norns is next powered on, this state will be recalled.
 
 navigate back to the mod menu and this time there will be a `>` symbol to the right of PASSTHROUGH. press `key 3` and the screen should display the passthrough mod menu
 
