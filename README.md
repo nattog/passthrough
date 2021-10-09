@@ -1,18 +1,14 @@
 # passthrough
 
-passthrough is intended as a simple solution for routing midi between external devices connected to norns. it may be considered midi thru for norns, defined at a script level, with a few extra functionalities added. 
+passthrough offers midi routing between connected ports on norns. it is similar to _midi thru_ on hardware devices although it comes with some extra functionality.
 
-![paramsmenu](img/params1.png)
-![paramsmenu2](img/params2.png)
-
+![animated image of passthrough mod interface](img/mod_menu.gif)
 
 ## introduction
 
-with passthrough, norns can be used as a midi routing hub. the internal nomenclature of the library defines two midi ports as either `device` or `interface`.
+passthrough extends norns to act as a midi routing hub. each incoming data to a port can be assigned to either a specific port for output, or all ports. it allows the user to send midi while simultaneously running a norns script.
 
-a `device` is conventionally dedicated to controlling, for example, a midi keyboard, sending note or control change data. an `interface`, often a device that generates sound, receives this incoming data and does something with it such as play incoming notes. 
-
-it is possible to send midi clock messages to the `device` from the `interface`. one peculiar feature of passthrough, that extends a typical midi thru functionality is that incoming notes from the `device` can be quantized to a scale if desired.   
+passthrough is built as a mod and also as a library that can be added to individual scripts. they are functionally the same, but the mod version runs at all times, during scripts or when no script is loaded. If the mod is installed and turned on in the mods menu, passthrough will be running.
 
 ## use cases
 
@@ -20,85 +16,75 @@ it is possible to send midi clock messages to the `device` from the `interface`.
 
 - scale quantization of incoming midi note data from controllers
 
-- by leveraging callbacks at a script level, incoming midi events can be shared between norns engines/parameters and external hardware
+- routing an external clock source through norns between devices
+
+- by leveraging callbacks at a script level, incoming midi events can be shared between norns scripts and external hardware
 
 ## requirements
 
-norns + midi compatible hardware. 
+norns + midi devices
 
-if your hardware does not offer midi via usb, an interface such as an iConnectivity mio helps to connect with 5-pin midi ports.
+if your midi hardware does not offer midi via usb, a midi interface such as an iConnectivity mio helps to connect with 5-pin midi ports.
 
 ## installation
 
-passthrough is intended to be easy to get up and running, and can be installed and used in two ways - *standalone* or *embedded*.
+passthrough is available from the maiden catalogue or by running the following command in the maiden repl
+`;install https://github.com/nattog/passthrough`
 
-installing *standalone* has the advantage of being possible to use passthrough with various scripts, whereas *embedded* places it within a single script, making that script more portable for sharing.
+## getting started
 
-the installation has been successful if `passthrough` appears in the script's params menu.  
+passthrough assigns some midi routing settings for each connected midi device in the norns system menu found at `SYSTEM > DEVICES > MIDI` :
+- `Target` may be all connected devices, or individual ones. this is the destination of incoming midi data 
+- `Input channel` selects which midi channel is listened to for incoming midi data
+- `Output channel` changes outgoing midi data to a specific midi channel, or leaves unchanged
+- `Clock out` allows/prevents clock messages being output
+- `Quantize midi` wraps note data to scales (quantization is set per connected midi device, so different scales can be used if desired)
+- `Root` sets the root note of the current scale
+- `Scale` sets the scale type (Major, Minor.. )
 
+additionally, `Midi panic` is a toggle to stop all active notes if some notes are hanging.
 
-### standalone
-as a standalone script and library, it is available to download from maiden's project manager or by running the following command in maiden's repl: 
-```
-;install https://github.com/nattog/passthrough
-```
+there are two example scripts, showing how to interact with passthrough either as a mod or a library. they detail how to include it in scripts so that users can define callbacks on incoming midi data. 
+### mod
+
+navigate to the mod menu at `SYSTEM > MODS`, scroll to `PASSTHROUGH` and turn encoder 3 until a `+` symbol appears. restart norns and passthrough is running. when norns is shutdown, the current state of passthrough is saved. When norns is next powered on, this state will be recalled.
+
+navigate back to the mod menu and this time there will be a `>` symbol to the right of PASSTHROUGH. press `key 3` and the screen should display the passthrough mod menu
+
+#### mod menu controls
+- `key 2` returns to `SYSTEM > MODS`
+- `key 3` changes which midi device is being edited
+- `enc 2` scrolls the menu to access parameters for the current midi device
+- `enc 3` changes the value of the selected parameter
+
+### library
 
 passthrough can be used with the example scripts or by attaching it to external scripts, by adding the following code at the head of the script file:
 
 ```
 if util.file_exists(_path.code.."passthrough") then
-  local passthru = include 'passthrough/lib/passthrough'
-  passthru.init()
+  local passthrough = include 'passthrough/lib/passthrough'
+  passthrough.init()
 end
 ```
 
-### embedded
-
-passthrough can be added to a specific script by copying [this file](https://github.com/nattog/passthrough/blob/main/lib/passthrough.lua) to the `lib` directory of a script. If `lib` does not exist, it will need to be created. the final path should look like `[script_name]/lib/passthrough.lua`.
-
-then add the following code to the main script file:
-
-```
-local passthru = include ("lib/passthrough")
-passthru.init()
-```
-
-## usage
-
-passthrough needs a small amount of plumbing to ensure that midi is routed to the correct destination. 
-
-### params
-
-ensure first that you have your midi hardware connected to norns. navigate to the passthrough section in the params menu and select your `device` and `interface`. 
-
-next, ensure that the `device channel` and `interface channel` options are correctly set. by default, these do not change the midi channel used so if your `device` is sending data on midi channel 1, the `interface` will receive data on channel 1. 
-
-at this point, the core functionality is setup for midi data being passed from `device` to `interface`. 
-
-`cc msg direction` toggles between unidirectional and bidirectional. unidirectional is `device` to `interface`, whereas bidirectional allows the `interface` to send control change to the `device`.
-
-`clock device` allows the `device` to follow the clock events of the `interface`, which is useful if the `device` has an arpeggiator or sequencer functionality. 
-
-`quantize` toggles note quantization. this allows note data to be restricted to scales. `root` and `scale` control the transposition and scale type respectively.    
+the installation has been successful if `PASSTHROUGH` appears in the script's params menu.
 
 ### user event handling 
 
-scripts can listen for midi events handled in passthrough and define their callbacks. The following example updates a script's `freq` and `amp` parameters based on midi device events 
+scripts can listen for midi events handled in passthrough and define their callbacks.
 
 ```
-  -- Midi event, fires when Midi data receieved
-  function midi_device_event(data)
-    local msg = midi.to_msg(data)
-
-    if msg.type == "note_on" then
-      hz = music_util.note_num_to_freq(msg.note)
-
-      params:set("freq", hz)
-      params:set("amp", (msg.vel / 127) * 100)
-    end
+  -- script-level callbacks for midi event
+  -- data is your midi, origin lets you know where it comes from
+  function user_midi_event(data, origin)
+      local msg = midi.to_msg(data)
+      if msg.type ~= 'clock' then
+        print(origin.port .. ' ' .. origin.name .. ' ' .. msg.type)
+      end
   end
 
-  passthru.user_device_event = midi_device_event
+  passthrough.user_event = user_midi_event
 ```
 
 ## issues
@@ -107,4 +93,9 @@ raise any issues experienced with passthrough either in the thread on [lines](ht
 
 ## contributing
 
-interested in adding a new feature or making changes? any pr is always welcome.
+wishing to contribute a new feature or change? github pull requests are welcome.
+
+## version history
+
+for older versions, check the [releases](https://github.com/nattog/passthrough/releases) in the repo. releases older than v2.0.0 are legacy, and no longer supported for development
+
