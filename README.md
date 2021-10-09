@@ -1,6 +1,6 @@
 # passthrough
 
-passthrough offers midi routing between connected ports on norns. it is similar to midi thru on hardware devices although it comes with some extra functionality.
+passthrough offers midi routing between connected ports on norns. it is similar to _midi thru_ on hardware devices although it comes with some extra functionality.
 
 ![animated image of passthrough mod interface](img/mod_menu.gif)
 
@@ -22,9 +22,9 @@ passthrough is built as a mod and also as a library that can be added to individ
 
 ## requirements
 
-norns + midi compatible hardware. 
+norns + midi devices
 
-if your hardware does not offer midi via usb, a midi interface such as an iConnectivity mio helps to connect with 5-pin midi ports.
+if your midi hardware does not offer midi via usb, a midi interface such as an iConnectivity mio helps to connect with 5-pin midi ports.
 
 ## installation
 
@@ -33,7 +33,7 @@ passthrough is available from the maiden catalogue or by running the following c
 
 ## getting started
 
-passthrough assigns some midi routing settings for each connected midi device:
+passthrough assigns some midi routing settings for each connected midi device in the norns system menu found at `SYSTEM > DEVICES > MIDI` :
 - `Target` may be all connected devices, or individual ones. this is the destination of incoming midi data 
 - `Input channel` selects which midi channel is listened to for incoming midi data
 - `Output channel` changes outgoing midi data to a specific midi channel, or leaves unchanged
@@ -47,14 +47,15 @@ additionally, `Midi panic` is a toggle to stop all active notes if some notes ar
 there are two example scripts, showing how to interact with passthrough either as a mod or a library. they detail how to include it in scripts so that users can define callbacks on incoming midi data. 
 ### mod
 
-navigate to the mod menu at SYSTEM > MODS, scroll to `PASSTHROUGH` and turn encoder 3 until a `+` symbol appears. restart norns and passthrough is running. when norns is shutdown, the current state of passthrough is saved. When norns is turned back on, it will remember these settings.
+navigate to the mod menu at `SYSTEM > MODS`, scroll to `PASSTHROUGH` and turn encoder 3 until a `+` symbol appears. restart norns and passthrough is running. when norns is shutdown, the current state of passthrough is saved. When norns is turned back on, it will remember these settings.
 
-navigate back to the mod menu and this time there will be a `>` symbol to the right of PASSTHROUGH. press key 3 and the screen should display the passthrough mod menu
+navigate back to the mod menu and this time there will be a `>` symbol to the right of PASSTHROUGH. press `key 3` and the screen should display the passthrough mod menu
 
 #### mod menu controls
-- key 3 changes which midi device is being edited
-- encoder 2 scrolls the menu to access parameters for the current midi device
-- encoder 3 changes the value of the selected parameter
+- `key 2` returns to `SYSTEM > MODS`
+- `key 3` changes which midi device is being edited
+- `enc 2` scrolls the menu to access parameters for the current midi device
+- `enc 3` changes the value of the selected parameter
 
 ### library
 
@@ -92,5 +93,5 @@ raise any issues experienced with passthrough either in the thread on [lines](ht
 
 ## contributing
 
-wishing to add a new feature or make some changes? github pull requests are welcome.
+wishing to contribute a new feature or change? github pull requests are welcome.
 
