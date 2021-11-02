@@ -8,11 +8,10 @@ local api = {}
 local config = {}
 local state = {}
 
--- NORNS OVERRIDES --
+-- MOD NORNS OVERRIDES --
 
 local midi_add = _norns.midi.add
 local midi_remove = _norns.midi.remove
-local midi_connect = _norns.midi.connect
 local script_clear = norns.script.clear
 
 _norns.midi.add = function(id, name, dev)
@@ -22,11 +21,7 @@ end
 
 _norns.midi.remove = function(id)
   midi_remove(id)
-  launch_passthrough()
-end
-
-_norns.midi.connect = function(id)
-    midi_connect(id)
+  update_devices()
 end
 
 norns.script.clear = function()
@@ -128,18 +123,22 @@ function create_config()
       state[k].dev_port = v.port
     end
     
+    print('set up port for ' .. v.port .. ' at ' .. k)
+    
     -- config creates an object for each passthru parameter
     config[k] = {
+      -- active = {
+      --   param_type = "option",
+      --   id = "active",
+      --   name = "Active",
+      --   options = core.toggles
+      -- },
       target = {
         param_type = "option",
         id = "target",
         name = "Target",
         options = core.available_targets,
         action = function(value)
-          core.midi_connections[k].connect.event = function(data) 
-            device_event(data, v.port)
-          end
-          
           core.port_connections[v.port] = core.get_target_connections(v.port, value)
         end,
         formatter = function(value)
@@ -209,30 +208,31 @@ function create_config()
   return config
 end
 
-function device_event(data, origin)
-    core.device_event(
-      origin,
-      state[origin].target,
-      state[origin].input_channel,
-      state[origin].output_channel,
-      state[origin].send_clock,
-      state[origin].quantize_midi,
-      state[origin].current_scale,
-      data)
+function device_event(id, data)
+    local origin = utils.table_find_value(midi.devices, function(key, val) return val.id == id end)
+    found_port = utils.table_find_value(state, function(key, val) return val.dev_port == origin.port end)
 
-    device = core.midi_ports[origin]
-    
-    api.user_event(data, {name=device.name,port=device.port})
+    -- if found_port.active then
+      core.device_event(
+        origin.port,
+        found_port.target,
+        found_port.input_channel,
+        found_port.output_channel,
+        found_port.send_clock,
+        found_port.quantize_midi,
+        found_port.current_scale,
+        data)
+      
+      api.user_event(data, {name=origin.name,port=origin.port})
+    -- end
 end
+
+core.origin_event = device_event -- assign device_event to core origin
 
 function update_devices() 
   core.setup_midi()
   config = create_config()
   assign_state()
-end
-
-function launch_passthrough()
-    update_devices()
 end
 
 function update_parameter(p, index, dir)
@@ -376,6 +376,10 @@ mod.menu.register(mod.this_name, m)
 -- API --
 api.get_state = function()
   return state
+end
+
+api.get_connections = function()
+  return core.midi_connections
 end
 
 api.user_event = core.user_event

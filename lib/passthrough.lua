@@ -16,19 +16,27 @@ local mod = require "core/mods"
 
 Passthrough.user_event = core.user_event
 
-local function device_event(data, device)
-    core.device_event(
-      device.port,
-      params:get("target_"..device.port),
-      params:get("input_channel_"..device.port),
-      params:get("output_channel_"..device.port),
-      params:get("send_clock_"..device.port)==2,
-      params:get("quantize_midi_"..device.port),
-      params:get("current_scale_"..device.port),
-      data)
+local function device_event(id, data)
+    -- local origin = utils.table_find_value(midi.devices, function(key, val) return val.id == id end)
+    -- connector = utils.table_find_value(core.midi_connections, function(key, val) return val.port == v.port end)
 
-    Passthrough.user_event(data, {name=device.name,port=device.port})
+    tab.print(core.midi_connections[1])
+    print('00--00')
+    tab.print(core.port_connections[id])
+    -- core.device_event(
+    --   origin.port,
+    --   params:get("target_"..origin.port),
+    --   params:get("input_channel_"..origin.port),
+    --   params:get("output_channel_"..origin.port),
+    --   params:get("send_clock_"..origin.port)==2,
+    --   params:get("quantize_midi_"..origin.port),
+    --   params:get("current_scale_"..origin.port),
+    --   data)
+
+    -- Passthrough.user_event(data, {name=device.name,port=device.port})
 end
+
+core.origin_event = device_event -- assign to core event
 
 function Passthrough.init()
   if tab.contains(mod.loaded_mod_names(), "passthrough") then 
@@ -53,15 +61,6 @@ function Passthrough.init()
         max = #core.available_targets,
         default = 1,
         action = function(value)
-          connector = utils.table_find_value(core.midi_connections, function(key, val) return val.port == v.port end)
-          connector.connect.event = nil
-          connector.connect.event = function(data) 
-            device = utils.table_find_value(core.midi_ports, function(key, val) return val.port == v.port end)
-            if device_event then device_event(data, device) end
-            if not device_event then
-              print("no event found")
-            end
-          end
           core.port_connections[v.port] = core.get_target_connections(v.port, value)
         end,
         formatter = function(param)
