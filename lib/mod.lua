@@ -231,6 +231,7 @@ function update_devices()
   core.setup_midi()
   config = create_config()
   assign_state()
+  write_state()
 end
 
 function update_parameter(p, index, dir)
