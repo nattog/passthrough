@@ -15,28 +15,26 @@ local tab = require "tabutil"
 local mod = require "core/mods"
 
 Passthrough.user_event = core.user_event
+Passthrough.get_port_from_id = core.get_port_from_id
 
 local function device_event(id, data)
-    -- local origin = utils.table_find_value(midi.devices, function(key, val) return val.id == id end)
-    -- connector = utils.table_find_value(core.midi_connections, function(key, val) return val.port == v.port end)
+  local port = core.get_port_from_id(id)
 
-    tab.print(core.midi_connections[1])
-    print('00--00')
-    tab.print(core.port_connections[id])
-    -- core.device_event(
-    --   origin.port,
-    --   params:get("target_"..origin.port),
-    --   params:get("input_channel_"..origin.port),
-    --   params:get("output_channel_"..origin.port),
-    --   params:get("send_clock_"..origin.port)==2,
-    --   params:get("quantize_midi_"..origin.port),
-    --   params:get("current_scale_"..origin.port),
-    --   data)
-
-    -- Passthrough.user_event(data, {name=device.name,port=device.port})
+  if port ~= nil and params:get("active_"..port) == 2 then
+    core.device_event(
+      port,
+      params:get("target_"..port),
+      params:get("input_channel_"..port),
+      params:get("output_channel_"..port),
+      params:get("send_clock_"..port)==2,
+      params:get("quantize_midi_"..port),
+      params:get("current_scale_"..port),
+      data)
+    
+    Passthrough.user_event(id, data)
+  end
 end
 
-core.origin_event = device_event -- assign to core event
 
 function Passthrough.init()
   if tab.contains(mod.loaded_mod_names(), "passthrough") then 
@@ -45,13 +43,22 @@ function Passthrough.init()
   end
 
   core.setup_midi()
+  core.origin_event = device_event -- assign to core event
+
   
-  port_amount = tab.count(core.midi_connections)
-  params:add_group("PASSTHROUGH", 8*port_amount + 2)
+  port_amount = tab.count(core.ports)
+  params:add_group("PASSTHROUGH", 9*port_amount + 2)
   
-  for k, v in pairs(core.midi_connections) do
+  for k, v in pairs(core.ports) do
       local name = utils.table_find_value(core.midi_ports, function(key, value) return value.port == v.port end).name
       params:add_separator(name .. ' ' .. v.port)
+      
+      params:add {
+        type="option",
+        id="active_" .. v.port,
+        name = "Active",
+        options = core.toggles 
+      }
 
       params:add {
         type="number",

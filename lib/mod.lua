@@ -42,7 +42,8 @@ function write_state()
       io.write(",")
     end
     io.write("["..k.."] =")
-    io.write("{ dev_port="..port_config.dev_port..",")
+    io.write("{ active="..port_config.active..",")
+    io.write("dev_port="..port_config.dev_port..",")
     io.write("target="..port_config.target..",")
     io.write("input_channel="..port_config.input_channel..",")
     io.write("output_channel="..port_config.output_channel..",")
@@ -101,15 +102,14 @@ mod.hook.register("script_pre_init", "passthrough", function()
   end
 end)
 
-
 -- ACTIONS + EVENTS --
 function create_config()
   local config={}
-  for k, v in pairs(core.midi_ports) do
-    -- if no state exists for this port, create a new one
-    if state[k] == nil then
-      print("No state saved for port, adding defaults")
-      state[k] = {
+
+  for k, v in pairs(core.ports) do
+    if state[v.port] == nil then
+      state[v.port] = {
+        active = 1,
         dev_port = v.port,
         target = 1,
         input_channel = 1,
@@ -120,19 +120,17 @@ function create_config()
         root_note = 0
       }
     else
-      state[k].dev_port = v.port
+      state[v.port].dev_port = v.port
     end
-    
-    print('set up port for ' .. v.port .. ' at ' .. k)
     
     -- config creates an object for each passthru parameter
     config[k] = {
-      -- active = {
-      --   param_type = "option",
-      --   id = "active",
-      --   name = "Active",
-      --   options = core.toggles
-      -- },
+      active = {
+        param_type = "option",
+        id = "active",
+        name = "Active",
+        options = core.toggles
+      },
       target = {
         param_type = "option",
         id = "target",
@@ -143,7 +141,7 @@ function create_config()
         end,
         formatter = function(value)
           if value == 1 then return core.available_targets[value] end
-          found_port = utils.table_find_value(core.midi_ports, function(key, val) return val.port == value - 1 end)
+          found_port = core.ports[value - 1]
             
           if found_port then return found_port.name end
           return "Saved port unconnected"
@@ -209,22 +207,22 @@ function create_config()
 end
 
 function device_event(id, data)
-    local origin = utils.table_find_value(midi.devices, function(key, val) return val.id == id end)
-    found_port = utils.table_find_value(state, function(key, val) return val.dev_port == origin.port end)
+    local port = core.get_port_from_id(id)
+    port_config = state[port]
 
-    -- if found_port.active then
+    if port_config ~= nil and port_config.active == 2 then
       core.device_event(
-        origin.port,
-        found_port.target,
-        found_port.input_channel,
-        found_port.output_channel,
-        found_port.send_clock,
-        found_port.quantize_midi,
-        found_port.current_scale,
+        port,
+        port_config.target,
+        port_config.input_channel,
+        port_config.output_channel,
+        port_config.send_clock,
+        port_config.quantize_midi,
+        port_config.current_scale,
         data)
       
-      api.user_event(data, {name=origin.name,port=origin.port})
-    -- end
+      api.user_event(id, data)
+    end
 end
 
 core.origin_event = device_event -- assign device_event to core origin
@@ -267,7 +265,7 @@ end
 
 
 -- MOD MENU --
-local screen_order = {"target", "input_channel", "output_channel", "send_clock", "quantize_midi", "root_note", "current_scale", "midi_panic"}
+local screen_order = {"active", "target", "input_channel", "output_channel", "send_clock", "quantize_midi", "root_note", "current_scale", "midi_panic"}
 local m = {
   list=screen_order,
   pos=0,
@@ -346,16 +344,18 @@ m.redraw = function()
   screen.level(0)
   screen.fill()
   screen.level(15)
+  screen.move(0, 10)
+  screen.text(m.page)
   screen.move(120, 10)
-  screen.text_right(string.upper(core.midi_ports[m.page].name))
+  screen.text_right(string.upper(core.ports[m.page].name))
   if m.show_hint then
     screen.level(2)
     screen.move(0, 20)
     screen.text("E2 scroll")
+    screen.move(42, 20)
+    screen.text("E3 select")
     screen.move(120, 20)
-    screen.text_right("E3 select")
-    screen.move(0, 10)
-    screen.text("K3 port")
+    screen.text_right("K3 port")
   end
   screen.update()
 end
@@ -380,6 +380,10 @@ end
 
 api.get_connections = function()
   return core.midi_connections
+end
+
+api.get_port_from_id = function(id)
+  return core.get_port_from_id(id)
 end
 
 api.user_event = core.user_event

@@ -6,13 +6,17 @@ pt.midi_panic_active = false
 pt.input_channels = {"No change"}
 pt.output_channels = {"Device src."}
 pt.toggles = {"no", "yes"}
-pt.midi_ports = {}
-pt.midi_connections = {}
 pt.available_targets = {}
 pt.scales = {}
 local active_notes = {}
 
+-- TODO: this is a mess and needs refactoring
+pt.midi_ports = {}
+pt.midi_connections = {}
 pt.port_connections = {}
+id_port_lookup = {}
+pt.ports = {}
+
 pt.origin_event = function (id, data) end
 
 -- CORE NORNS OVERRIDES --
@@ -45,6 +49,8 @@ for i = 1, 16 do
     table.insert(pt.output_channels, i)
 end
 
+pt.get_port_from_id = function(id)return id_port_lookup[id] end
+
 pt.get_target_connections = function(origin, selection) 
   local t = {}
 
@@ -70,12 +76,17 @@ pt.get_target_connections = function(origin, selection)
 end
 
 pt.setup_midi = function()
+    local id_port_map = {}
     local midi_ports={}
+    local ports = {}
     local midi_connections = {}
     local available_targets = {"all"}
 
     for _,dev in pairs(midi.devices) do
         if dev.port~=nil then
+            id_port_map[dev.id] = dev.port
+            ports[dev.port] = {id=dev.id, name=dev.name, port=dev.port, connect=midi.connect(dev.port)}
+            
             table.insert(midi_ports, {name=dev.name, port=dev.port})
             table.insert(midi_connections, {connect= midi.connect(dev.port), port=dev.port})
         end
@@ -84,8 +95,11 @@ pt.setup_midi = function()
     table.sort(midi_connections, function(a, b) return a.port < b.port end)
     table.sort(midi_ports, function(a, b) return a.port < b.port end)
 
+    pt.ports = ports
     pt.midi_ports = midi_ports
     pt.midi_connections = midi_connections
+    id_port_lookup = id_port_map
+
     for i = 1, tab.count(midi_ports) do
         table.insert(available_targets, i)
     end
@@ -176,6 +190,7 @@ pt.device_event = function(origin, device_target, input_channel, output_channel,
     local in_chan = get_midi_channel_value(input_channel, msg.ch)
     local out_ch = get_midi_channel_value(output_channel, msg.ch)
 
+    --OPTIMISE THIS
     if msg and msg.ch == in_chan then
         -- get scale stored in scales object
         local scale = pt.scales[origin]
@@ -190,9 +205,9 @@ pt.device_event = function(origin, device_target, input_channel, output_channel,
           pt.handle_clock_data(msg, v)
         end
     end
+    -- UNTIL HERE
 end
 
-pt.user_event = function(data, origin)
-end
+pt.user_event = function(id, data) end
 
 return pt
