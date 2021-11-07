@@ -16,6 +16,7 @@ pt.midi_connections = {}
 pt.port_connections = {}
 id_port_lookup = {}
 pt.ports = {}
+pt.targets = {}
 
 pt.origin_event = function (id, data) end
 
@@ -49,7 +50,7 @@ for i = 1, 16 do
     table.insert(pt.output_channels, i)
 end
 
-pt.get_port_from_id = function(id)return id_port_lookup[id] end
+pt.get_port_from_id = function(id) return id_port_lookup[id] end
 
 pt.get_target_connections = function(origin, selection) 
   local t = {}
@@ -65,7 +66,7 @@ pt.get_target_connections = function(origin, selection)
     return t
   else
     -- SINGLE PORT - still create iterable for ease
-    local port_target = pt.midi_ports[selection - 1].port
+    local port_target = pt.targets[origin][selection]
     if origin ~= port_target then
       local mc = utils.table_find_value(pt.midi_connections, function(k, v) return v.port == port_target end)
       if mc then table.insert(t, mc.connect) end
@@ -75,11 +76,23 @@ pt.get_target_connections = function(origin, selection)
   return t
 end
 
+create_port_targets_table = function(port)
+  local t = {"all"}
+  
+  for k, v in pairs(pt.ports) do
+    if port ~= v.port then
+      table.insert(t, v.port)
+    end
+  end
+  return t
+end
+
 pt.setup_midi = function()
     local id_port_map = {}
     local midi_ports={}
     local ports = {}
     local midi_connections = {}
+    local targets = {}
     local available_targets = {"all"}
 
     for _,dev in pairs(midi.devices) do
@@ -89,6 +102,8 @@ pt.setup_midi = function()
             
             table.insert(midi_ports, {name=dev.name, port=dev.port})
             table.insert(midi_connections, {connect= midi.connect(dev.port), port=dev.port})
+            local port_targets = create_port_targets_table(dev.port)
+            targets[dev.port] = port_targets
         end
     end
 
@@ -104,6 +119,7 @@ pt.setup_midi = function()
         table.insert(available_targets, i)
     end
     pt.available_targets = available_targets
+    pt.targets = targets
 end
 
 pt.root_note_formatter = MusicUtil.note_num_to_name
@@ -185,13 +201,13 @@ pt.device_event = function(origin, device_target, input_channel, output_channel,
     
     local msg = midi.to_msg(data)
 
-    local connections = pt.port_connections[origin]
+    local connections = pt.port_connections[origin] -- check this out to debug
 
     local in_chan = get_midi_channel_value(input_channel, msg.ch)
     local out_ch = get_midi_channel_value(output_channel, msg.ch)
 
     --OPTIMISE THIS
-    if msg and msg.ch == in_chan then
+    if msg and msg.ch == in_chan and msg.type ~= "clock" then
         -- get scale stored in scales object
         local scale = pt.scales[origin]
         

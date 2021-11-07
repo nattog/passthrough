@@ -37,20 +37,20 @@ function write_state()
   local counter = 0
   for k, v in pairs(state) do
     counter = counter + 1
-    local port_config = state[k]
+
     if counter~=1 then
       io.write(",")
     end
     io.write("["..k.."] =")
-    io.write("{ active="..port_config.active..",")
-    io.write("dev_port="..port_config.dev_port..",")
-    io.write("target="..port_config.target..",")
-    io.write("input_channel="..port_config.input_channel..",")
-    io.write("output_channel="..port_config.output_channel..",")
-    io.write("send_clock="..port_config.send_clock..",")
-    io.write("quantize_midi="..port_config.quantize_midi..",")
-    io.write("current_scale="..port_config.current_scale..",")
-    io.write("root_note="..port_config.root_note.."}")
+    io.write("{ active="..v.active..",")
+    io.write("dev_port="..v.dev_port..",")
+    io.write("target="..v.target..",")
+    io.write("input_channel="..v.input_channel..",")
+    io.write("output_channel="..v.output_channel..",")
+    io.write("send_clock="..v.send_clock..",")
+    io.write("quantize_midi="..v.quantize_midi..",")
+    io.write("current_scale="..v.current_scale..",")
+    io.write("root_note="..v.root_note.."}")
   end
   io.write("}\n")
   io.close(f)
@@ -85,7 +85,7 @@ mod.hook.register("system_post_startup", "read passthrough state", function()
 end)
 
 mod.hook.register("system_pre_shutdown", "write passthrough state", function()
-  write_state()
+    write_state()
 end)
 
 mod.hook.register("script_post_cleanup", "passthrough post cleanup", function()
@@ -135,15 +135,16 @@ function create_config()
         param_type = "option",
         id = "target",
         name = "Target",
-        options = core.available_targets,
+        options = core.targets[v.port],
         action = function(value)
           core.port_connections[v.port] = core.get_target_connections(v.port, value)
         end,
         formatter = function(value)
-          if value == 1 then return core.available_targets[value] end
-          found_port = core.ports[value - 1]
-            
+          if value == 1 then return core.targets[v.port][value] end
+          local target = core.targets[v.port][value]
+          local found_port = utils.table_find_value(core.ports, function(_,v) return target == v.port end)
           if found_port then return found_port.name end
+          
           return "Saved port unconnected"
         end
       },
@@ -209,6 +210,7 @@ end
 function device_event(id, data)
     local port = core.get_port_from_id(id)
     port_config = state[port]
+    
 
     if port_config ~= nil and port_config.active == 2 then
       core.device_event(
@@ -231,7 +233,6 @@ function update_devices()
   core.setup_midi()
   config = create_config()
   assign_state()
-  write_state()
 end
 
 function update_parameter(p, index, dir)
