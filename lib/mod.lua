@@ -320,11 +320,12 @@ m.enc = function(n, d)
   end
 
   if n == 3 then
+    local page_port = m.display_devices[m.page]
     if m.list[m.pos+1] == "midi_panic" then
       core.stop_all_notes()
       toggle_display_panic()
     else
-      update_parameter(config[m.page][m.list[m.pos + 1]], m.page, d)
+      update_parameter(config[page_port][m.list[m.pos + 1]], page_port, d)
     end
   end 
   mod.menu.redraw()
