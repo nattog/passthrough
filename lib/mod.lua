@@ -264,6 +264,17 @@ function format_parameter(p, index)
   return state[index][p.id]
 end
 
+local get_menu_pagination_table = function()
+    local t = {}
+    
+    local counter = 1
+    for k, v in pairs(config) do
+      t[counter] = k
+      counter = counter + 1
+    end
+    
+    return t
+end
 
 -- MOD MENU --
 local screen_order = {"active", "target", "input_channel", "output_channel", "send_clock", "quantize_midi", "root_note", "current_scale", "midi_panic"}
@@ -273,7 +284,8 @@ local m = {
   page=1,
   len=tab.count(screen_order),
   show_hint = true,
-  display_panic = false
+  display_panic = false,
+  display_devices = {}
 }
 
 local toggle_display_panic = function()
@@ -290,7 +302,7 @@ m.key = function(n, z)
     mod.menu.exit()
   end
   if n == 3 and z == 1 then
-    m.page = util.wrap(m.page + z, 1, tab.count(config))
+    m.page = util.wrap(m.page + z, 1, tab.count(m.display_devices))
     m.pos = 0
     m.show_hint = false
     mod.menu.redraw()
@@ -320,6 +332,7 @@ end
 
 m.redraw = function()
   screen.clear()
+  local page_port = m.display_devices[m.page]
   for i=1,6 do
     if (i > 2 - m.pos) and (i < m.len - m.pos + 3) then
       screen.move(0,10*i)
@@ -336,8 +349,8 @@ m.redraw = function()
         screen.level(m.display_panic and 15 or 4)
         screen.fill()
       else
-        local param = config[m.page][line]
-        screen.text(param.name .. " : " .. format_parameter(param, m.page))
+        local param = config[page_port][line]
+        screen.text(param.name .. " : " .. format_parameter(param, page_port))
       end
     end
   end
@@ -346,9 +359,9 @@ m.redraw = function()
   screen.fill()
   screen.level(15)
   screen.move(0, 10)
-  screen.text(m.page)
+  screen.text(page_port)
   screen.move(120, 10)
-  screen.text_right(string.upper(core.ports[m.page].name))
+  screen.text_right(string.upper(core.ports[page_port].name))
   if m.show_hint then
     screen.level(2)
     screen.move(0, 20)
@@ -361,11 +374,12 @@ m.redraw = function()
   screen.update()
 end
 
-m.init = function() 
+m.init = function()
   m.page = 1
   m.pos = 0
   m.show_hint=true
   update_devices()
+  m.display_devices = get_menu_pagination_table()
 end
 
 m.deinit = function() 
