@@ -84,7 +84,7 @@ mod.hook.register("system_post_startup", "read passthrough state", function()
 end)
 
 mod.hook.register("system_pre_shutdown", "write passthrough state", function()
-    write_state()
+  write_state()
 end)
 
 mod.hook.register("script_post_cleanup", "passthrough post cleanup", function()
