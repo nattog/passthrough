@@ -34,6 +34,7 @@ passthrough is available from the maiden catalogue or by running the following c
 ## getting started
 
 passthrough assigns some midi routing settings for each connected midi device in the norns system menu found at `SYSTEM > DEVICES > MIDI` :
+- `Active` turns on or off passthrough for this port
 - `Target` may be all connected devices, or individual ones. this is the destination of incoming midi data 
 - `Input channel` selects which midi channel is listened to for incoming midi data
 - `Output channel` changes outgoing midi data to a specific midi channel, or leaves unchanged
