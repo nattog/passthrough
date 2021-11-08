@@ -77,12 +77,11 @@ scripts can listen for midi events handled in passthrough and define their callb
 
 ```
   -- script-level callbacks for midi event
-  -- data is your midi, origin lets you know where it comes from
-  function user_midi_event(data, origin)
+  -- id is the midi device id, data is your midi data
+  function user_midi_event(id, data)
       local msg = midi.to_msg(data)
-      if msg.type ~= 'clock' then
-        print(origin.port .. ' ' .. origin.name .. ' ' .. msg.type)
-      end
+      -- to find the port number, there is a helper function provided
+      -- port = passthrough.get_port_from_id(id)
   end
 
   passthrough.user_event = user_midi_event
