@@ -45,13 +45,11 @@ function Passthrough.init()
   core.setup_midi()
   core.origin_event = device_event -- assign to core event
 
-  
   port_amount = tab.count(core.ports)
   params:add_group("PASSTHROUGH", 9*port_amount + 2)
   
   for k, v in pairs(core.ports) do
-      local name = utils.table_find_value(core.midi_ports, function(key, value) return value.port == v.port end).name
-      params:add_separator(name .. ' ' .. v.port)
+      params:add_separator(v.port .. ': ' .. v.name)
       
       params:add {
         type="option",
@@ -64,21 +62,21 @@ function Passthrough.init()
         type="number",
         id="target_" .. v.port,
         name = "Target",
-        min=1,
-        max = #core.available_targets,
-        default = 1,
+        min = 1, 
+        max = tab.count(core.targets[v.port]),
+        default=1,
         action = function(value)
-          core.port_connections[v.port] = core.get_target_connections(v.port, value)
+          core.port_connections[v.port] = core.set_target_connections(v.port, value)
         end,
         formatter = function(param)
           value = param:get()
-          if value == 1 then 
-            return core.available_targets[value] 
-          else
-            found_port = utils.table_find_value(core.midi_ports, function(key, val) return val.port == value - 1 end)
-            if found_port then return found_port.name end
-            return "Saved port unconnected"
-          end
+
+          if value == 1 then return core.targets[v.port][value] end
+          local target = core.targets[v.port][value]
+          local found_port = utils.table_find_value(core.ports, function(_,v) return target == v.port end)
+          if found_port then return found_port.name end
+
+          return "Saved port unconnected"
         end,
       }
       

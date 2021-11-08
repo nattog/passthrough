@@ -6,17 +6,14 @@ pt.midi_panic_active = false
 pt.input_channels = {"No change"}
 pt.output_channels = {"Device src."}
 pt.toggles = {"no", "yes"}
-pt.available_targets = {}
 pt.scales = {}
 local active_notes = {}
 
 -- TODO: this is a mess and needs refactoring
-pt.midi_ports = {}
-pt.midi_connections = {}
-pt.port_connections = {}
-id_port_lookup = {}
-pt.ports = {}
-pt.targets = {}
+id_port_lookup = {} -- used to lookup midi port by id
+pt.port_connections = {} -- used to quickly grab table of targets for each port
+pt.ports = {} -- port settings, id, name, port, connect
+pt.targets = {} -- assign available targets (filters out itself) for each port
 
 pt.origin_event = function (id, data) end
 
@@ -52,12 +49,12 @@ end
 
 pt.get_port_from_id = function(id) return id_port_lookup[id] end
 
-pt.get_target_connections = function(origin, selection) 
+pt.set_target_connections = function(origin, selection) 
   local t = {}
 
   -- SELECT ALL PORTS
   if selection == 1 then
-    for k, v in pairs(pt.midi_connections) do
+    for k, v in pairs(pt.ports) do
       if v.port ~= origin then
         table.insert(t, v.connect)  
       end
@@ -68,7 +65,7 @@ pt.get_target_connections = function(origin, selection)
     -- SINGLE PORT - still create iterable for ease
     local port_target = pt.targets[origin][selection]
     if origin ~= port_target then
-      local mc = utils.table_find_value(pt.midi_connections, function(k, v) return v.port == port_target end)
+      local mc = utils.table_find_value(pt.ports, function(k, v) return v.port == port_target end)
       if mc then table.insert(t, mc.connect) end
     end
   end
@@ -76,7 +73,7 @@ pt.get_target_connections = function(origin, selection)
   return t
 end
 
-create_port_targets_table = function(port)
+local create_port_targets_table = function(port)
   local t = {"all"}
   
   for k, v in pairs(pt.ports) do
@@ -84,6 +81,7 @@ create_port_targets_table = function(port)
       table.insert(t, v.port)
     end
   end
+  
   return t
 end
 
@@ -91,34 +89,24 @@ pt.setup_midi = function()
     local id_port_map = {}
     local midi_ports={}
     local ports = {}
-    local midi_connections = {}
     local targets = {}
-    local available_targets = {"all"}
 
     for _,dev in pairs(midi.devices) do
         if dev.port~=nil then
             id_port_map[dev.id] = dev.port
-            ports[dev.port] = {id=dev.id, name=dev.name, port=dev.port, connect=midi.connect(dev.port)}
-            
-            table.insert(midi_ports, {name=dev.name, port=dev.port})
-            table.insert(midi_connections, {connect= midi.connect(dev.port), port=dev.port})
-            local port_targets = create_port_targets_table(dev.port)
-            targets[dev.port] = port_targets
+            ports[dev.port] = {id=dev.id, name=dev.name, port=dev.port, connect=midi.connect(dev.port)}            
         end
     end
 
-    table.sort(midi_connections, function(a, b) return a.port < b.port end)
-    table.sort(midi_ports, function(a, b) return a.port < b.port end)
-
     pt.ports = ports
-    pt.midi_ports = midi_ports
-    pt.midi_connections = midi_connections
+    
+    for k, v in pairs(pt.ports) do
+      local port_targets = create_port_targets_table(v.port)
+      targets[v.port] = port_targets
+    end
+    
     id_port_lookup = id_port_map
 
-    for i = 1, tab.count(midi_ports) do
-        table.insert(available_targets, i)
-    end
-    pt.available_targets = available_targets
     pt.targets = targets
 end
 

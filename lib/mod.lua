@@ -137,7 +137,7 @@ function create_config()
         name = "Target",
         options = core.targets[v.port],
         action = function(value)
-          core.port_connections[v.port] = core.get_target_connections(v.port, value)
+          core.port_connections[v.port] = core.set_target_connections(v.port, value)
         end,
         formatter = function(value)
           if value == 1 then return core.targets[v.port][value] end
@@ -396,7 +396,7 @@ api.get_state = function()
 end
 
 api.get_connections = function()
-  return core.midi_connections
+  return core.port_connections
 end
 
 api.get_port_from_id = function(id)
