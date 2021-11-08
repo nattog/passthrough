@@ -34,6 +34,7 @@ passthrough is available from the maiden catalogue or by running the following c
 ## getting started
 
 passthrough assigns some midi routing settings for each connected midi device in the norns system menu found at `SYSTEM > DEVICES > MIDI` :
+- `Active` turns on or off passthrough for this port
 - `Target` may be all connected devices, or individual ones. this is the destination of incoming midi data 
 - `Input channel` selects which midi channel is listened to for incoming midi data
 - `Output channel` changes outgoing midi data to a specific midi channel, or leaves unchanged
@@ -76,12 +77,11 @@ scripts can listen for midi events handled in passthrough and define their callb
 
 ```
   -- script-level callbacks for midi event
-  -- data is your midi, origin lets you know where it comes from
-  function user_midi_event(data, origin)
+  -- id is the midi device id, data is your midi data
+  function user_midi_event(id, data)
       local msg = midi.to_msg(data)
-      if msg.type ~= 'clock' then
-        print(origin.port .. ' ' .. origin.name .. ' ' .. msg.type)
-      end
+      -- to find the port number, there is a helper function provided
+      -- port = passthrough.get_port_from_id(id)
   end
 
   passthrough.user_event = user_midi_event

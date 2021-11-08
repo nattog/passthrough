@@ -14,11 +14,11 @@ local passthrough = mod_running and require 'passthrough/lib/mod' or nil
 
 -- script-level callbacks for midi event
 -- data is your midi, origin lets you know where it comes from
-function user_midi_event(data, origin)
+function user_midi_event(id, data)
     local msg = midi.to_msg(data)
     -- do something with your data
     if msg.type ~= 'clock' then
-      utils.examples_start_screen_datum({type = msg.type, port = origin.port})
+      utils.examples_start_screen_datum({type = msg.type, port = passthrough.get_port_from_id(id)})
     end
 end
 
@@ -38,6 +38,7 @@ function init()
       redraw()
     end
     screen_refresh_metro:start(1 / screen_framerate)
+    
   end
 end
 

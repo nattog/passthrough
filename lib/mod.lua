@@ -1,5 +1,4 @@
 local mod = require "core/mods"
-
 local core = require("passthrough/lib/core")
 local utils = require("passthrough/lib/utils")
 local tab = require "tabutil"
@@ -8,11 +7,10 @@ local api = {}
 local config = {}
 local state = {}
 
--- NORNS OVERRIDES --
+-- MOD NORNS OVERRIDES --
 
 local midi_add = _norns.midi.add
 local midi_remove = _norns.midi.remove
-local midi_connect = _norns.midi.connect
 local script_clear = norns.script.clear
 
 _norns.midi.add = function(id, name, dev)
@@ -22,11 +20,7 @@ end
 
 _norns.midi.remove = function(id)
   midi_remove(id)
-  launch_passthrough()
-end
-
-_norns.midi.connect = function(id)
-    midi_connect(id)
+  update_devices()
 end
 
 norns.script.clear = function()
@@ -42,19 +36,20 @@ function write_state()
   local counter = 0
   for k, v in pairs(state) do
     counter = counter + 1
-    local port_config = state[k]
+
     if counter~=1 then
       io.write(",")
     end
     io.write("["..k.."] =")
-    io.write("{ dev_port="..port_config.dev_port..",")
-    io.write("target="..port_config.target..",")
-    io.write("input_channel="..port_config.input_channel..",")
-    io.write("output_channel="..port_config.output_channel..",")
-    io.write("send_clock="..port_config.send_clock..",")
-    io.write("quantize_midi="..port_config.quantize_midi..",")
-    io.write("current_scale="..port_config.current_scale..",")
-    io.write("root_note="..port_config.root_note.."}")
+    io.write("{ active="..v.active..",")
+    io.write("dev_port="..v.dev_port..",")
+    io.write("target="..v.target..",")
+    io.write("input_channel="..v.input_channel..",")
+    io.write("output_channel="..v.output_channel..",")
+    io.write("send_clock="..v.send_clock..",")
+    io.write("quantize_midi="..v.quantize_midi..",")
+    io.write("current_scale="..v.current_scale..",")
+    io.write("root_note="..v.root_note.."}")
   end
   io.write("}\n")
   io.close(f)
@@ -106,15 +101,14 @@ mod.hook.register("script_pre_init", "passthrough", function()
   end
 end)
 
-
 -- ACTIONS + EVENTS --
 function create_config()
   local config={}
-  for k, v in pairs(core.midi_ports) do
-    -- if no state exists for this port, create a new one
-    if state[k] == nil then
-      print("No state saved for port, adding defaults")
-      state[k] = {
+
+  for k, v in pairs(core.ports) do
+    if state[v.port] == nil then
+      state[v.port] = {
+        active = 1,
         dev_port = v.port,
         target = 1,
         input_channel = 1,
@@ -125,28 +119,31 @@ function create_config()
         root_note = 0
       }
     else
-      state[k].dev_port = v.port
+      state[v.port].dev_port = v.port
     end
     
     -- config creates an object for each passthru parameter
     config[k] = {
+      active = {
+        param_type = "option",
+        id = "active",
+        name = "Active",
+        options = core.toggles
+      },
       target = {
         param_type = "option",
         id = "target",
         name = "Target",
-        options = core.available_targets,
+        options = core.targets[v.port],
         action = function(value)
-          core.midi_connections[k].connect.event = function(data) 
-            device_event(data, v.port)
-          end
-          
-          core.port_connections[v.port] = core.get_target_connections(v.port, value)
+          core.port_connections[v.port] = core.set_target_connections(v.port, value)
         end,
         formatter = function(value)
-          if value == 1 then return core.available_targets[value] end
-          found_port = utils.table_find_value(core.midi_ports, function(key, val) return val.port == value - 1 end)
-            
+          if value == 1 then return core.targets[v.port][value] end
+          local target = core.targets[v.port][value]
+          local found_port = utils.table_find_value(core.ports, function(_,v) return target == v.port end)
           if found_port then return found_port.name end
+          
           return "Saved port unconnected"
         end
       },
@@ -209,30 +206,32 @@ function create_config()
   return config
 end
 
-function device_event(data, origin)
-    core.device_event(
-      origin,
-      state[origin].target,
-      state[origin].input_channel,
-      state[origin].output_channel,
-      state[origin].send_clock,
-      state[origin].quantize_midi,
-      state[origin].current_scale,
-      data)
-
-    device = core.midi_ports[origin]
+function device_event(id, data)
+    local port = core.get_port_from_id(id)
+    port_config = state[port]
     
-    api.user_event(data, {name=device.name,port=device.port})
+
+    if port_config ~= nil and port_config.active == 2 then
+      core.device_event(
+        port,
+        port_config.target,
+        port_config.input_channel,
+        port_config.output_channel,
+        port_config.send_clock,
+        port_config.quantize_midi,
+        port_config.current_scale,
+        data)
+      
+      api.user_event(id, data)
+    end
 end
+
+core.origin_event = device_event -- assign device_event to core origin
 
 function update_devices() 
   core.setup_midi()
   config = create_config()
   assign_state()
-end
-
-function launch_passthrough()
-    update_devices()
 end
 
 function update_parameter(p, index, dir)
@@ -265,16 +264,28 @@ function format_parameter(p, index)
   return state[index][p.id]
 end
 
+local get_menu_pagination_table = function()
+    local t = {}
+    
+    local counter = 1
+    for k, v in pairs(config) do
+      t[counter] = k
+      counter = counter + 1
+    end
+    
+    return t
+end
 
 -- MOD MENU --
-local screen_order = {"target", "input_channel", "output_channel", "send_clock", "quantize_midi", "root_note", "current_scale", "midi_panic"}
+local screen_order = {"active", "target", "input_channel", "output_channel", "send_clock", "quantize_midi", "root_note", "current_scale", "midi_panic"}
 local m = {
   list=screen_order,
   pos=0,
   page=1,
   len=tab.count(screen_order),
   show_hint = true,
-  display_panic = false
+  display_panic = false,
+  display_devices = {}
 }
 
 local toggle_display_panic = function()
@@ -291,7 +302,7 @@ m.key = function(n, z)
     mod.menu.exit()
   end
   if n == 3 and z == 1 then
-    m.page = util.wrap(m.page + z, 1, tab.count(config))
+    m.page = util.wrap(m.page + z, 1, tab.count(m.display_devices))
     m.pos = 0
     m.show_hint = false
     mod.menu.redraw()
@@ -309,11 +320,12 @@ m.enc = function(n, d)
   end
 
   if n == 3 then
+    local page_port = m.display_devices[m.page]
     if m.list[m.pos+1] == "midi_panic" then
       core.stop_all_notes()
       toggle_display_panic()
     else
-      update_parameter(config[m.page][m.list[m.pos + 1]], m.page, d)
+      update_parameter(config[page_port][m.list[m.pos + 1]], page_port, d)
     end
   end 
   mod.menu.redraw()
@@ -321,6 +333,7 @@ end
 
 m.redraw = function()
   screen.clear()
+  local page_port = m.display_devices[m.page]
   for i=1,6 do
     if (i > 2 - m.pos) and (i < m.len - m.pos + 3) then
       screen.move(0,10*i)
@@ -337,8 +350,8 @@ m.redraw = function()
         screen.level(m.display_panic and 15 or 4)
         screen.fill()
       else
-        local param = config[m.page][line]
-        screen.text(param.name .. " : " .. format_parameter(param, m.page))
+        local param = config[page_port][line]
+        screen.text(param.name .. " : " .. format_parameter(param, page_port))
       end
     end
   end
@@ -346,25 +359,28 @@ m.redraw = function()
   screen.level(0)
   screen.fill()
   screen.level(15)
+  screen.move(0, 10)
+  screen.text(page_port)
   screen.move(120, 10)
-  screen.text_right(string.upper(core.midi_ports[m.page].name))
+  screen.text_right(string.upper(core.ports[page_port].name))
   if m.show_hint then
     screen.level(2)
     screen.move(0, 20)
     screen.text("E2 scroll")
+    screen.move(42, 20)
+    screen.text("E3 select")
     screen.move(120, 20)
-    screen.text_right("E3 select")
-    screen.move(0, 10)
-    screen.text("K3 port")
+    screen.text_right("K3 port")
   end
   screen.update()
 end
 
-m.init = function() 
+m.init = function()
   m.page = 1
   m.pos = 0
   m.show_hint=true
   update_devices()
+  m.display_devices = get_menu_pagination_table()
 end
 
 m.deinit = function() 
@@ -376,6 +392,14 @@ mod.menu.register(mod.this_name, m)
 -- API --
 api.get_state = function()
   return state
+end
+
+api.get_connections = function()
+  return core.port_connections
+end
+
+api.get_port_from_id = function(id)
+  return core.get_port_from_id(id)
 end
 
 api.user_event = core.user_event

@@ -15,20 +15,26 @@ local tab = require "tabutil"
 local mod = require "core/mods"
 
 Passthrough.user_event = core.user_event
+Passthrough.get_port_from_id = core.get_port_from_id
 
-local function device_event(data, device)
+local function device_event(id, data)
+  local port = core.get_port_from_id(id)
+
+  if port ~= nil and params:get("active_"..port) == 2 then
     core.device_event(
-      device.port,
-      params:get("target_"..device.port),
-      params:get("input_channel_"..device.port),
-      params:get("output_channel_"..device.port),
-      params:get("send_clock_"..device.port)==2,
-      params:get("quantize_midi_"..device.port),
-      params:get("current_scale_"..device.port),
+      port,
+      params:get("target_"..port),
+      params:get("input_channel_"..port),
+      params:get("output_channel_"..port),
+      params:get("send_clock_"..port)==2,
+      params:get("quantize_midi_"..port),
+      params:get("current_scale_"..port),
       data)
-
-    Passthrough.user_event(data, {name=device.name,port=device.port})
+    
+    Passthrough.user_event(id, data)
+  end
 end
+
 
 function Passthrough.init()
   if tab.contains(mod.loaded_mod_names(), "passthrough") then 
@@ -37,42 +43,40 @@ function Passthrough.init()
   end
 
   core.setup_midi()
+  core.origin_event = device_event -- assign to core event
+
+  port_amount = tab.count(core.ports)
+  params:add_group("PASSTHROUGH", 9*port_amount + 2)
   
-  port_amount = tab.count(core.midi_connections)
-  params:add_group("PASSTHROUGH", 8*port_amount + 2)
-  
-  for k, v in pairs(core.midi_connections) do
-      local name = utils.table_find_value(core.midi_ports, function(key, value) return value.port == v.port end).name
-      params:add_separator(name .. ' ' .. v.port)
+  for k, v in pairs(core.ports) do
+      params:add_separator(v.port .. ': ' .. v.name)
+      
+      params:add {
+        type="option",
+        id="active_" .. v.port,
+        name = "Active",
+        options = core.toggles 
+      }
 
       params:add {
         type="number",
         id="target_" .. v.port,
         name = "Target",
-        min=1,
-        max = #core.available_targets,
-        default = 1,
+        min = 1, 
+        max = tab.count(core.targets[v.port]),
+        default=1,
         action = function(value)
-          connector = utils.table_find_value(core.midi_connections, function(key, val) return val.port == v.port end)
-          connector.connect.event = nil
-          connector.connect.event = function(data) 
-            device = utils.table_find_value(core.midi_ports, function(key, val) return val.port == v.port end)
-            if device_event then device_event(data, device) end
-            if not device_event then
-              print("no event found")
-            end
-          end
-          core.port_connections[v.port] = core.get_target_connections(v.port, value)
+          core.port_connections[v.port] = core.set_target_connections(v.port, value)
         end,
         formatter = function(param)
           value = param:get()
-          if value == 1 then 
-            return core.available_targets[value] 
-          else
-            found_port = utils.table_find_value(core.midi_ports, function(key, val) return val.port == value - 1 end)
-            if found_port then return found_port.name end
-            return "Saved port unconnected"
-          end
+
+          if value == 1 then return core.targets[v.port][value] end
+          local target = core.targets[v.port][value]
+          local found_port = utils.table_find_value(core.ports, function(_,v) return target == v.port end)
+          if found_port then return found_port.name end
+
+          return "Saved port unconnected"
         end,
       }
       
