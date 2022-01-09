@@ -210,6 +210,8 @@ function device_event(id, data)
     local port = core.get_port_from_id(id)
     port_config = state[port]
     
+    print(port)
+    
 
     if port_config ~= nil and port_config.active == 2 then
       core.device_event(
@@ -400,6 +402,14 @@ end
 
 api.get_port_from_id = function(id)
   return core.get_port_from_id(id)
+end
+
+api.get_ports = function()
+  return core.ports
+end
+
+api.set_debug = function()
+  core.debug = true
 end
 
 api.user_event = core.user_event

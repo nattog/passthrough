@@ -2,6 +2,7 @@ local MusicUtil = require "musicutil"
 local pt = {}
 local utils = require("passthrough/lib/utils")
 
+pt.debug = true
 pt.midi_panic_active = false
 pt.input_channels = {"No change"}
 pt.output_channels = {"Device src."}
@@ -105,9 +106,18 @@ pt.setup_midi = function()
       targets[v.port] = port_targets
     end
     
+    if pt.debug then
+      print('TARGETS')
+      for k, v in pairs(targets) do
+        print('port ' .. k)
+        tab.print(v)
+      end
+    end
+    
     id_port_lookup = id_port_map
 
     pt.targets = targets
+    
 end
 
 pt.root_note_formatter = MusicUtil.note_num_to_name
@@ -188,8 +198,21 @@ pt.device_event = function(origin, device_target, input_channel, output_channel,
     end
     
     local msg = midi.to_msg(data)
+    
+    if pt.debug then
+      tab.print(data)
+    end
 
     local connections = pt.port_connections[origin] -- check this out to debug
+    
+    if pt.debug then
+      if connections ~= nil then
+        tab.print(connections)
+        print('not nil')
+      else
+        print('nil connections')
+      end
+    end
 
     local in_chan = get_midi_channel_value(input_channel, msg.ch)
     local out_ch = get_midi_channel_value(output_channel, msg.ch)
