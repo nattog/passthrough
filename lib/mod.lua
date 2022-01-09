@@ -405,11 +405,16 @@ api.get_port_from_id = function(id)
 end
 
 api.get_ports = function()
+  if core.debug then
+    for k, v in pairs(core.ports) do
+      tab.print(v)
+    end
+  end
   return core.ports
 end
 
-api.set_debug = function()
-  core.debug = true
+api.set_debug = function(v)
+  core.debug = v
 end
 
 api.user_event = core.user_event

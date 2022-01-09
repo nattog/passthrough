@@ -2,7 +2,7 @@ local MusicUtil = require "musicutil"
 local pt = {}
 local utils = require("passthrough/lib/utils")
 
-pt.debug = true
+pt.debug = false
 pt.midi_panic_active = false
 pt.input_channels = {"No change"}
 pt.output_channels = {"Device src."}
@@ -200,7 +200,7 @@ pt.device_event = function(origin, device_target, input_channel, output_channel,
     local msg = midi.to_msg(data)
     
     if pt.debug then
-      tab.print(data)
+      -- tab.print(data)
     end
 
     local connections = pt.port_connections[origin] -- check this out to debug

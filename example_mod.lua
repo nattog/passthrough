@@ -10,7 +10,7 @@ local utils = require 'passthrough/lib/utils'
 
 -- runs a check to ensure that the mod is loaded
 local mod_running = tab.contains(mod.loaded_mod_names(), 'passthrough')
-local passthrough = mod_running and require 'passthrough/lib/mod' or nil
+passthrough = mod_running and require 'passthrough/lib/mod' or nil
 
 -- script-level callbacks for midi event
 -- data is your midi, origin lets you know where it comes from
@@ -40,6 +40,7 @@ function init()
     screen_refresh_metro:start(1 / screen_framerate)
     
   end
+  passthrough.set_debug(true)
 end
 
 function redraw()
