@@ -89,7 +89,7 @@ scripts can listen for midi events handled in passthrough and define their callb
 
 ## issues
 
-raise any issues experienced with passthrough either in the thread on [lines](https://llllllll.co/t/passthrough/31156) or by logging a new issue on the [github repo](https://www.github.com/nattog/passthrough/issues).
+raise any issues experienced with passthrough either in the v2 thread on [lines](https://llllllll.co/t/passthrough-v2/49397) or by logging a new issue on the [github repo](https://www.github.com/nattog/passthrough/issues).
 
 ## contributing
 
