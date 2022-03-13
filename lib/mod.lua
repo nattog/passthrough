@@ -312,67 +312,78 @@ end
 m.enc = function(n, d)
   m.show_hint = false
   
-  if n == 2 then
-    if m.pos == 0 and d == -1 then
-      m.show_hint = true
-    end
-    m.pos = util.clamp(m.pos + d, 0, m.len - 1)
+  if core.has_devices == true then 
+      if n == 2 then
+        if m.pos == 0 and d == -1 then
+          m.show_hint = true
+        end
+        m.pos = util.clamp(m.pos + d, 0, m.len - 1)
+      end
+    
+      if n == 3 then
+        local page_port = m.display_devices[m.page]
+        if m.list[m.pos+1] == "midi_panic" then
+          core.stop_all_notes()
+          toggle_display_panic()
+        else
+          update_parameter(config[page_port][m.list[m.pos + 1]], page_port, d)
+        end
+      end 
+      mod.menu.redraw()
   end
-
-  if n == 3 then
-    local page_port = m.display_devices[m.page]
-    if m.list[m.pos+1] == "midi_panic" then
-      core.stop_all_notes()
-      toggle_display_panic()
-    else
-      update_parameter(config[page_port][m.list[m.pos + 1]], page_port, d)
-    end
-  end 
-  mod.menu.redraw()
 end
 
 m.redraw = function()
   screen.clear()
-  local page_port = m.display_devices[m.page]
-  for i=1,6 do
-    if (i > 2 - m.pos) and (i < m.len - m.pos + 3) then
-      screen.move(0,10*i)
-      local line = m.list[i+m.pos-2]
-      if(i==3) then
-        screen.level(15)
-      else
-        screen.level(4)
-      end
 
-      if line == "midi_panic" then
-        screen.text("Midi panic : ")
-        screen.rect(50, (10*i)-4.5, 5, 5)
-        screen.level(m.display_panic and 15 or 4)
-        screen.fill()
-      else
-        local param = config[page_port][line]
-        screen.text(param.name .. " : " .. format_parameter(param, page_port))
+  if core.has_devices == true then
+      
+      local page_port = m.display_devices[m.page]
+      for i=1,6 do
+        if (i > 2 - m.pos) and (i < m.len - m.pos + 3) then
+          screen.move(0,10*i)
+          local line = m.list[i+m.pos-2]
+          if(i==3) then
+            screen.level(15)
+          else
+            screen.level(4)
+          end
+    
+          if line == "midi_panic" then
+            screen.text("Midi panic : ")
+            screen.rect(50, (10*i)-4.5, 5, 5)
+            screen.level(m.display_panic and 15 or 4)
+            screen.fill()
+          else
+            local param = config[page_port][line]
+            screen.text(param.name .. " : " .. format_parameter(param, page_port))
+          end
+        end
       end
-    end
+      screen.rect(0, 0, 140, 13)
+      screen.level(0)
+      screen.fill()
+      screen.level(15)
+      screen.move(0, 10)
+      screen.text(page_port)
+      screen.move(120, 10)
+      screen.text_right(string.upper(core.ports[page_port].name))
+      if m.show_hint then
+        screen.level(2)
+        screen.move(0, 20)
+        screen.text("E2 scroll")
+        screen.move(42, 20)
+        screen.text("E3 select")
+        screen.move(120, 20)
+        screen.text_right("K3 port")
+      end
+      screen.update()
+  else
+     screen.level(15)
+     screen.move(0, 20)
+     screen.text("No devices connected") 
+     screen.update()
   end
-  screen.rect(0, 0, 140, 13)
-  screen.level(0)
-  screen.fill()
-  screen.level(15)
-  screen.move(0, 10)
-  screen.text(page_port)
-  screen.move(120, 10)
-  screen.text_right(string.upper(core.ports[page_port].name))
-  if m.show_hint then
-    screen.level(2)
-    screen.move(0, 20)
-    screen.text("E2 scroll")
-    screen.move(42, 20)
-    screen.text("E3 select")
-    screen.move(120, 20)
-    screen.text_right("K3 port")
-  end
-  screen.update()
 end
 
 m.init = function()

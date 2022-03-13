@@ -16,6 +16,7 @@ pt.ports = {} -- port settings, id, name, port, connect
 pt.targets = {} -- assign available targets (filters out itself) for each port
 
 pt.origin_event = function (id, data) end
+pt.has_devices = false
 
 -- CORE NORNS OVERRIDES --
 local midi_event = _norns.midi.event
@@ -99,6 +100,7 @@ pt.setup_midi = function()
     end
 
     pt.ports = ports
+    pt.has_devices = tab.count(ports)>0
     
     for k, v in pairs(pt.ports) do
       local port_targets = create_port_targets_table(v.port)
