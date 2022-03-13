@@ -44,106 +44,108 @@ function Passthrough.init()
 
   core.setup_midi()
   core.origin_event = device_event -- assign to core event
-
-  port_amount = tab.count(core.ports)
-  params:add_group("PASSTHROUGH", 9*port_amount + 2)
   
-  for k, v in pairs(core.ports) do
-      params:add_separator(v.port .. ': ' .. v.name)
+  if core.has_devices == true then
+
+      port_amount = tab.count(core.ports)
+      params:add_group("PASSTHROUGH", 9*port_amount + 2)
       
-      params:add {
-        type="option",
-        id="active_" .. v.port,
-        name = "Active",
-        options = core.toggles 
-      }
-
-      params:add {
-        type="number",
-        id="target_" .. v.port,
-        name = "Target",
-        min = 1, 
-        max = tab.count(core.targets[v.port]),
-        default=1,
-        action = function(value)
-          core.port_connections[v.port] = core.set_target_connections(v.port, value)
-        end,
-        formatter = function(param)
-          value = param:get()
-
-          if value == 1 then return core.targets[v.port][value] end
-          local target = core.targets[v.port][value]
-          local found_port = utils.table_find_value(core.ports, function(_,v) return target == v.port end)
-          if found_port then return found_port.name end
-
-          return "Saved port unconnected"
-        end,
-      }
-      
-      params:add {
-        type = "option",
-        id = "input_channel_"..v.port,
-        name = "Input channel",
-        options = core.input_channels
-      }
-      params:add {
-        type = "option",
-        id = "output_channel_"..v.port,
-        name = "Output channel",
-        options = core.output_channels
-      }
-      params:add {
-        type = "option",
-        id = "send_clock_"..v.port,
-        name = "Clock out",
-        options = core.toggles,
-        default=1,
-        action = function(value)
-            if value == 1 then
-                core.stop_clocks(v.port)
+      for k, v in pairs(core.ports) do
+          params:add_separator(v.port .. ': ' .. v.name)
+          
+          params:add {
+            type="option",
+            id="active_" .. v.port,
+            name = "Active",
+            options = core.toggles 
+          }
+    
+          params:add {
+            type="number",
+            id="target_" .. v.port,
+            name = "Target",
+            min = 1, 
+            max = tab.count(core.targets[v.port]),
+            default=1,
+            action = function(value)
+              core.port_connections[v.port] = core.set_target_connections(v.port, value)
+            end,
+            formatter = function(param)
+              value = param:get()
+    
+              if value == 1 then return core.targets[v.port][value] end
+              local target = core.targets[v.port][value]
+              local found_port = utils.table_find_value(core.ports, function(_,v) return target == v.port end)
+              if found_port then return found_port.name end
+    
+              return "Saved port unconnected"
+            end,
+          }
+          
+          params:add {
+            type = "option",
+            id = "input_channel_"..v.port,
+            name = "Input channel",
+            options = core.input_channels
+          }
+          params:add {
+            type = "option",
+            id = "output_channel_"..v.port,
+            name = "Output channel",
+            options = core.output_channels
+          }
+          params:add {
+            type = "option",
+            id = "send_clock_"..v.port,
+            name = "Clock out",
+            options = core.toggles,
+            default=1,
+            action = function(value)
+                if value == 1 then
+                    core.stop_clocks(v.port)
+                end
             end
-        end
-      }
-      params:add {
-        type = "option",
-        id = "quantize_midi_"..v.port,
-        name = "Quantize midi",
-        options = core.toggles
-      }
-      params:add {
-        type = "number",
-        id = "root_note_"..v.port,
-        name = "Root",
-        minimum = 0,
-        maximum = 11,
-        formatter = function(param) 
-          return core.root_note_formatter(param:get())
-        end,
-        action = function()
-            core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), v.port)
-        end
-      }
-      params:add {
-          type = "option",
-          id = "current_scale_"..v.port,
-          name = "Scale",
-          options = core.scale_names,
-          action = function()
-            core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), v.port)
+          }
+          params:add {
+            type = "option",
+            id = "quantize_midi_"..v.port,
+            name = "Quantize midi",
+            options = core.toggles
+          }
+          params:add {
+            type = "number",
+            id = "root_note_"..v.port,
+            name = "Root",
+            minimum = 0,
+            maximum = 11,
+            formatter = function(param) 
+              return core.root_note_formatter(param:get())
+            end,
+            action = function()
+                core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), v.port)
+            end
+          }
+          params:add {
+              type = "option",
+              id = "current_scale_"..v.port,
+              name = "Scale",
+              options = core.scale_names,
+              action = function()
+                core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), v.port)
+              end
+            }
+    
           end
-        }
-
-      end
-      params:add_separator("All devices")
-      params:add {
-        type = "trigger",
-        id = "midi_panic",
-        name = "Midi panic",
-        action = function()
-          core.stop_all_notes()
-        end
-      }
-  
+          params:add_separator("All devices")
+          params:add {
+            type = "trigger",
+            id = "midi_panic",
+            name = "Midi panic",
+            action = function()
+              core.stop_all_notes()
+            end
+          }
+  end
   params:bang()
 end
 
