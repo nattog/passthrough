@@ -29,6 +29,7 @@ local function device_event(id, data)
       params:get("send_clock_"..port)==2,
       params:get("quantize_midi_"..port),
       params:get("current_scale_"..port),
+      params:get("cc_limit_"..port),
       data)
     
     Passthrough.user_event(id, data)
@@ -134,7 +135,12 @@ function Passthrough.init()
                 core.build_scale(params:get("root_note_"..v.port), params:get("current_scale_"..v.port), v.port)
               end
             }
-    
+          params:add {
+            type = "option",
+            id = "cc_limit_"..v.port,
+            name = "CC limit",
+            options = core.cc_limits
+          }
           end
           params:add_separator("All devices")
           params:add {
