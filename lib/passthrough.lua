@@ -49,7 +49,7 @@ function Passthrough.init()
   if core.has_devices == true then
 
       port_amount = tab.count(core.ports)
-      params:add_group("PASSTHROUGH", 9*port_amount + 2)
+      params:add_group("PASSTHROUGH", 10*port_amount + 2)
       
       for k, v in pairs(core.ports) do
           params:add_separator(v.port .. ': ' .. v.name)

@@ -42,7 +42,7 @@ passthrough assigns some midi routing settings for each connected midi device in
 - `Quantize midi` wraps note data to scales (quantization is set per connected midi device, so different scales can be used if desired)
 - `Root` sets the root note of the current scale
 - `Scale` sets the scale type (Major, Minor.. )
-- `CC limit` sets the limit of midi CC messages to be sent for every channel per `25ms` timeframe. if more messages than this limit are received, then the last messages (per channel) will be sent automatically on next timeframe. this is useful when a midi controller is generating too many messages too fast (eg. moving all the faders at once on a novation launchcontrol xl)
+- `CC limit` sets the limit of midi CC messages to be sent for every channel per `25ms` timeframe. if more messages than this limit are received, then the last messages (per channel) will be sent automatically on next timeframe. this is useful when a midi controller is generating too many messages too fast (eg. moving all the faders at once on a novation launchcontrol xl). the `Pass all` option allows all CC messages to passthrough, without any kind of limiting. the `Pass none` option doesn't allow any midi CC messages to passthrough, effectively removing all of them
 
 additionally, `Midi panic` is a toggle to stop all active notes if some notes are hanging.
 
