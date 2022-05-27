@@ -49,7 +49,8 @@ function write_state()
     io.write("send_clock="..v.send_clock..",")
     io.write("quantize_midi="..v.quantize_midi..",")
     io.write("current_scale="..v.current_scale..",")
-    io.write("root_note="..v.root_note.."}")
+    io.write("root_note="..v.root_note..",")
+    io.write("cc_limit="..v.cc_limit.."}")
   end
   io.write("}\n")
   io.close(f)
@@ -63,6 +64,10 @@ function read_state()
   end
 
   for i = 1, tab.count(state) do
+    if state[i].cc_limit == nil then
+      state[i].cc_limit = 1
+    end
+
     core.build_scale(state[i].root_note, state[i].current_scale, state[i].dev_port)
   end
 end
@@ -116,7 +121,8 @@ function create_config()
         send_clock = 1,
         quantize_midi = 1,
         current_scale = 1,
-        root_note = 0
+        root_note = 0,
+        cc_limit = 1
       }
     else
       state[v.port].dev_port = v.port
@@ -195,7 +201,13 @@ function create_config()
           action = function()
             core.build_scale(state[k].root_note, state[k].current_scale, k)
           end
-        }
+        },
+      cc_limit = {
+        param_type = "option",
+        id = "cc_limit",
+        name = "CC limit",
+        options = core.cc_limits
+      }
     }
 
     config[k].target.action(state[k].target)
@@ -220,6 +232,7 @@ function device_event(id, data)
         port_config.send_clock,
         port_config.quantize_midi,
         port_config.current_scale,
+        port_config.cc_limit,
         data)
       
       api.user_event(id, data)
@@ -277,7 +290,7 @@ local get_menu_pagination_table = function()
 end
 
 -- MOD MENU --
-local screen_order = {"active", "target", "input_channel", "output_channel", "send_clock", "quantize_midi", "root_note", "current_scale", "midi_panic"}
+local screen_order = {"active", "target", "input_channel", "output_channel", "send_clock", "quantize_midi", "root_note", "current_scale", "cc_limit", "midi_panic"}
 local m = {
   list=screen_order,
   pos=0,

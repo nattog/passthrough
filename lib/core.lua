@@ -7,7 +7,11 @@ pt.input_channels = {"No change"}
 pt.output_channels = {"Device src."}
 pt.toggles = {"no", "yes"}
 pt.scales = {}
+pt.cc_limits = {"Pass all", "Pass none"}
+for i = 1, 10 do table.insert(pt.cc_limits, i) end
 local active_notes = {}
+local cc_limit_count = {}
+local cc_limit_init = {}
 
 -- TODO: this is a mess and needs refactoring
 id_port_lookup = {} -- used to lookup midi port by id
@@ -40,6 +44,37 @@ end
 
 pt.build_scale = function(root, scale, index)
     pt.scales[index] = MusicUtil.generate_scale_of_length(root, scale, 128)
+end
+
+-- CC LIMIT --
+local function cc_limit_send(msg, target, out_ch, cc_limit)
+    if cc_limit == 2 then
+        return
+    end
+
+    if cc_limit == 1 then
+        target:cc(msg.cc, msg.val, out_ch)
+
+        return
+    end
+
+    if cc_limit_count[target] == nil then
+        cc_limit_count[target] = 0
+    end
+
+    if cc_limit_count[target] < cc_limit - 2 then
+        target:cc(msg.cc, msg.val, out_ch)
+        cc_limit_count[target] = cc_limit_count[target] + 1
+    else
+        if cc_limit_init[target] == nil then
+          cc_limit_init[target] = {}
+        end
+        if cc_limit_init[target][out_ch] == nil then
+            cc_limit_init[target][out_ch] = {}
+        end
+
+        cc_limit_init[target][out_ch][msg.cc] = msg.val
+    end
 end
 
 -- MIDI DEVICE DETECTION --
@@ -110,6 +145,8 @@ pt.setup_midi = function()
     id_port_lookup = id_port_map
 
     pt.targets = targets
+
+    metro.init(pt.handle_cc_limit, 0.025):start()
 end
 
 pt.root_note_formatter = MusicUtil.note_num_to_name
@@ -143,7 +180,7 @@ pt.stop_all_notes = function()
 end
 
 -- DATA HANDLERS --
-pt.handle_midi_data = function(msg, target, out_ch, quantize_midi, current_scale)
+pt.handle_midi_data = function(msg, target, out_ch, quantize_midi, current_scale, cc_limit)
     local note = msg.note
 
     if note ~= nil then
@@ -167,7 +204,7 @@ pt.handle_midi_data = function(msg, target, out_ch, quantize_midi, current_scale
     elseif msg.type == "program_change" then
         target:program_change(msg.val, out_ch)
     elseif msg.type == "cc" then
-        target:cc(msg.cc, msg.val, out_ch)
+        cc_limit_send(msg, target, out_ch, cc_limit)
     end
 end
 
@@ -183,7 +220,20 @@ pt.handle_clock_data = function(msg, target)
     end
 end
 
-pt.device_event = function(origin, device_target, input_channel, output_channel, send_clock, quantize_midi, current_scale, data)
+pt.handle_cc_limit = function()
+  for target, v in pairs(cc_limit_init) do
+    for out_ch, ccs in pairs(v) do
+      for cc, value in pairs(ccs) do
+        target:cc(cc, value, out_ch)
+      end
+    end
+  end
+
+  cc_limit_count = {}
+  cc_limit_init = {}
+end
+
+pt.device_event = function(origin, device_target, input_channel, output_channel, send_clock, quantize_midi, current_scale, cc_limit, data)
     if #data == 0 then
         print("no data")
         return
@@ -202,7 +252,7 @@ pt.device_event = function(origin, device_target, input_channel, output_channel,
         local scale = pt.scales[origin]
         
         for k, v in pairs(connections) do
-          pt.handle_midi_data(msg, v, out_ch, quantize_midi, scale)
+          pt.handle_midi_data(msg, v, out_ch, quantize_midi, scale, cc_limit)
         end
     end
     
