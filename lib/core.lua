@@ -8,6 +8,11 @@ pt.output_channels = {"Device src."}
 pt.toggles = {"no", "yes"}
 pt.scales = {}
 pt.cc_limits = {"Pass all", "Pass none"}
+pt.crow_notes = {"Off", "1+2", "3+4"}
+pt.crow_cc_outputs = {"Off", "1+2", "3+4"}
+
+local current_crow_note = nil
+
 for i = 1, 10 do table.insert(pt.cc_limits, i) end
 local active_notes = {}
 local cc_limit_count = {}
@@ -179,15 +184,37 @@ pt.stop_all_notes = function()
     active_notes= {}
 end
 
+-- CROW DATA
+pt.crow_note_on_data = function(note_num, note_channel, gate_channel)
+    current_crow_note = note_num
+    crow.output[note_channel].volts = (note_num-60)/12
+    crow.output[gate_channel].action = "{to(5,0)}"
+    crow.output[gate_channel].execute()
+end
+
+pt.crow_note_off_data = function(note_num, gate_channel)
+    if current_crow_note == nil or current_crow_note == note_num then
+        crow.output[gate_channel].action = "{to(0,0.025)}"
+        crow.output[gate_channel].execute()
+        current_crow_note = nil
+    end
+end
+
+pt.crow_cc_data = function(msg, channel)
+   crow.output[channel].volts = (msg.val/127) * 5
+end
+
+pt.quantize_note_data = function(note, current_scale)
+    if note ~= nil then
+        note = MusicUtil.snap_note_to_array(note, current_scale)
+    end
+
+    return note
+end
+
 -- DATA HANDLERS --
 pt.handle_midi_data = function(msg, target, out_ch, quantize_midi, current_scale, cc_limit)
-    local note = msg.note
-
-    if note ~= nil then
-        if quantize_midi == 2 then
-            note = MusicUtil.snap_note_to_array(note, current_scale)
-        end
-    end
+    local note = (quantize_midi == 2 and msg.note ~= nil) and pt.quantize_note_data(msg.note, current_scale) or msg.note
 
     if msg.type == "note_off" then
         target:note_off(note, 0, out_ch)
@@ -205,6 +232,36 @@ pt.handle_midi_data = function(msg, target, out_ch, quantize_midi, current_scale
         target:program_change(msg.val, out_ch)
     elseif msg.type == "cc" then
         cc_limit_send(msg, target, out_ch, cc_limit)
+    end
+end
+
+pt.process_data_for_crow = function(msg, crow_notes, crow_cc_outputs, crow_cc_selection_a, crow_cc_selection_b, quantize_midi, current_scale)
+    local note = (quantize_midi == 2 and msg.note ~= nil) and pt.quantize_note_data(msg.note, current_scale) or msg.note
+    
+    if msg.type == "note_on" then
+        if (crow_notes > 1) then
+            local note_channel = crow_notes == 2 and 1 or 3
+            pt.crow_note_on_data(note, note_channel, note_channel+1)
+        end
+    elseif msg.type == "note_off" then
+        if (crow_notes > 1) then
+            pt.crow_note_off_data(note, crow_notes == 2 and 2 or 4)
+        end
+    elseif msg.type == "cc" then
+        if (crow_cc_outputs > 1) then
+            local is_selection_a = msg.cc == crow_cc_selection_a
+            local is_selection_b = msg.cc == crow_cc_selection_b
+            
+            if is_selection_a or is_selection_b then
+                local crow_output = crow_cc_outputs == 2 and 1 or 3
+                if is_selection_a then
+                    pt.crow_cc_data(msg, crow_output) 
+                end
+                if is_selection_b then
+                   pt.crow_cc_data(msg, crow_output+1) 
+                end
+            end
+        end
     end
 end
 
@@ -233,7 +290,7 @@ pt.handle_cc_limit = function()
   cc_limit_init = {}
 end
 
-pt.device_event = function(origin, device_target, input_channel, output_channel, send_clock, quantize_midi, current_scale, cc_limit, data)
+pt.device_event = function(origin, device_target, input_channel, output_channel, send_clock, quantize_midi, current_scale, cc_limit, crow_notes, crow_cc_outputs, crow_cc_selection_a, crow_cc_selection_b, data)
     if #data == 0 then
         print("no data")
         return
@@ -245,11 +302,12 @@ pt.device_event = function(origin, device_target, input_channel, output_channel,
 
     local in_chan = get_midi_channel_value(input_channel, msg.ch)
     local out_ch = get_midi_channel_value(output_channel, msg.ch)
+    -- get scale stored in scales object
+    local scale = pt.scales[origin]
 
     --OPTIMISE THIS
     if msg and msg.ch == in_chan and msg.type ~= "clock" then
-        -- get scale stored in scales object
-        local scale = pt.scales[origin]
+
         
         for k, v in pairs(connections) do
           pt.handle_midi_data(msg, v, out_ch, quantize_midi, scale, cc_limit)
@@ -262,6 +320,11 @@ pt.device_event = function(origin, device_target, input_channel, output_channel,
         end
     end
     -- UNTIL HERE
+
+    if crow_notes > 1 or crow_cc_outputs > 1 then
+        pt.process_data_for_crow(msg, crow_notes, crow_cc_outputs, crow_cc_selection_a, crow_cc_selection_b, quantize_midi, scale)
+    end
+
 end
 
 pt.user_event = function(id, data) end
