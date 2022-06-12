@@ -240,11 +240,12 @@ pt.process_data_for_crow = function(msg, crow_notes, crow_cc_outputs, crow_cc_se
     local note = (quantize_midi == 2 and msg.note ~= nil) and pt.quantize_note_data(msg.note, current_scale) or msg.note
     
     if (crow_notes > 1) then
+        local is_first_output_pair = crow_notes == 2
         if msg.type == "note_on" then
-            local note_channel = crow_notes == 2 and 1 or 3
+            local note_channel = is_first_output_pair and 1 or 3
             pt.crow_note_on_data(note, note_channel, note_channel+1)
         elseif msg.type == "note_off" then
-            pt.crow_note_off_data(note, crow_notes == 2 and 2 or 4)
+            pt.crow_note_off_data(note, is_first_output_pair and 2 or 4)
         end
     end
     if msg.type == "cc" then
