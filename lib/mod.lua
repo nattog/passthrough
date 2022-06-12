@@ -6,6 +6,21 @@ local tab = require "tabutil"
 local api = {}
 local config = {}
 local state = {}
+local default_port_state = {
+  active = 1,
+  target = 1,
+  input_channel = 1,
+  output_channel = 1,
+  send_clock = 1,
+  quantize_midi = 1,
+  current_scale = 1,
+  root_note = 0,
+  cc_limit = 1,
+  crow_notes = 1,
+  crow_cc_outputs = 1,
+  crow_cc_selection_a = 1,
+  crow_cc_selection_b = 1,
+}
 
 -- MOD NORNS OVERRIDES --
 
@@ -50,7 +65,11 @@ function write_state()
     io.write("quantize_midi="..v.quantize_midi..",")
     io.write("current_scale="..v.current_scale..",")
     io.write("root_note="..v.root_note..",")
-    io.write("cc_limit="..v.cc_limit.."}")
+    io.write("cc_limit="..v.cc_limit..",")
+    io.write("crow_notes="..v.crow_notes..",")
+    io.write("crow_cc_outputs="..v.crow_cc_outputs..",")
+    io.write("crow_cc_selection_a="..v.crow_cc_selection_a..",")
+    io.write("crow_cc_selection_b="..v.crow_cc_selection_b.."}")
   end
   io.write("}\n")
   io.close(f)
@@ -112,22 +131,18 @@ function create_config()
 
   for k, v in pairs(core.ports) do
     if state[v.port] == nil then
-      state[v.port] = {
-        active = 1,
-        dev_port = v.port,
-        target = 1,
-        input_channel = 1,
-        output_channel = 1,
-        send_clock = 1,
-        quantize_midi = 1,
-        current_scale = 1,
-        root_note = 0,
-        cc_limit = 1
-      }
+      state[v.port] = default_port_state
     else
-      state[v.port].dev_port = v.port
+        -- ensure that the state is up to date with changing api keys
+        for key, value in pairs(default_port_state) do
+          if state[v.port][key] == nil then
+            state[v.port][key] = value
+          end
+        end
     end
     
+    state[v.port].dev_port = v.port
+
     -- config creates an object for each passthru parameter
     config[k] = {
       active = {
@@ -201,13 +216,39 @@ function create_config()
           action = function()
             core.build_scale(state[k].root_note, state[k].current_scale, k)
           end
-        },
+      },
       cc_limit = {
         param_type = "option",
         id = "cc_limit",
         name = "CC limit",
         options = core.cc_limits
-      }
+      },
+      crow_notes = {
+        param_type = "option",
+        id = "crow_notes",
+        name = "Crow note output",
+        options = core.crow_notes
+      },
+      crow_cc_outputs = {
+        param_type = "option",
+        id = "crow_cc_outputs",
+        name = "Crow cc output",
+        options = core.crow_cc_outputs
+      },
+      crow_cc_selection_a = {
+        param_type = "number",
+        id = "crow_cc_selection_a",
+        name = "Crow cc out a",
+        minimum = 1,
+        maximum = 128,
+      },
+      crow_cc_selection_b = {
+        param_type = "number",
+        id = "crow_cc_selection_b",
+        name = "Crow cc out b",
+        minimum = 1,
+        maximum = 128,
+      },
     }
 
     config[k].target.action(state[k].target)
@@ -233,6 +274,10 @@ function device_event(id, data)
         port_config.quantize_midi,
         port_config.current_scale,
         port_config.cc_limit,
+        port_config.crow_notes,
+        port_config.crow_cc_outputs,
+        port_config.crow_cc_selection_a,
+        port_config.crow_cc_selection_b,
         data)
       
       api.user_event(id, data)
@@ -290,7 +335,7 @@ local get_menu_pagination_table = function()
 end
 
 -- MOD MENU --
-local screen_order = {"active", "target", "input_channel", "output_channel", "send_clock", "quantize_midi", "root_note", "current_scale", "cc_limit", "midi_panic"}
+local screen_order = {"active", "target", "input_channel", "output_channel", "send_clock", "quantize_midi", "root_note", "current_scale", "cc_limit", "crow_notes", "crow_cc_outputs", "crow_cc_selection_a", "crow_cc_selection_b", "midi_panic"}
 local m = {
   list=screen_order,
   pos=0,

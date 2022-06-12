@@ -20,6 +20,8 @@ passthrough is built as a mod and also as a library that can be added to individ
 
 - by leveraging callbacks at a script level, incoming midi events can be shared between norns scripts and external hardware
 
+- converting MIDI note data to cv/gate, and CC data to cv by sending to crow
+
 ## requirements
 
 norns + midi devices
@@ -43,6 +45,10 @@ passthrough assigns some midi routing settings for each connected midi device in
 - `Root` sets the root note of the current scale
 - `Scale` sets the scale type (Major, Minor.. )
 - `CC limit` sets the limit of midi CC messages to be sent for every channel per `25ms` timeframe. if more messages than this limit are received, then the last messages (per channel) will be sent automatically on next timeframe. this is useful when a midi controller is generating too many messages too fast (eg. moving all the faders at once on a novation launchcontrol xl). the `Pass all` option allows all CC messages to passthrough, without any kind of limiting. the `Pass none` option doesn't allow any midi CC messages to passthrough, effectively removing all of them
+- `Crow note output` allows note and gate data to be sent to Monome Crow output pairs `1+2` or `3+4`.
+- `Crow cc output` allows two streams of control change data to be sent to Monome Crow output pairs 1+2 or 3+4
+- `Crow cc out a` sets the MIDI control change number to assign to the first of the assigned pair of `Crow cc output`
+- `Crow cc out b` sets the MIDI control change number to assign to the second of the assigned pair of `Crow cc output`
 
 additionally, `Midi panic` is a toggle to stop all active notes if some notes are hanging.
 

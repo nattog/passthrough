@@ -3,8 +3,16 @@ local utils = {}
 local data_counter = 1
 local screen_data = {}
 
+utils.n2v = function(note)
+  return (note-60)/12
+end
+
+utils.cc_cv = function(cc)
+  return (cc/127) * 5
+end
+
 utils.table_find_value = function(t, condition)
-  for k,v in pairs(t, condition) do
+  for k,v in pairs(t) do
     if condition(k, v) then
       return v
     end

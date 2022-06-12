@@ -14,6 +14,23 @@ local utils = require("passthrough/lib/utils")
 local tab = require "tabutil"
 local mod = require "core/mods"
 
+local port_param_items = {
+  "separator",
+  "active",
+  "target",
+  "input_channel",
+  "output_channel",
+  "send_clock",
+  "quantize_midi",
+  "root_note",
+  "current_scale",
+  "cc_limit",
+  "crow_notes",
+  "crow_cc_outputs",
+  "crow_cc_selection_a",
+  "crow_cc_selection_b",
+}
+
 Passthrough.user_event = core.user_event
 Passthrough.get_port_from_id = core.get_port_from_id
 
@@ -30,6 +47,10 @@ local function device_event(id, data)
       params:get("quantize_midi_"..port),
       params:get("current_scale_"..port),
       params:get("cc_limit_"..port),
+      params:get("crow_notes_"..port),
+      params:get("crow_cc_outputs_"..port),
+      params:get("crow_cc_selection_a_"..port),
+      params:get("crow_cc_selection_b_"..port),
       data)
     
     Passthrough.user_event(id, data)
@@ -49,7 +70,7 @@ function Passthrough.init()
   if core.has_devices == true then
 
       port_amount = tab.count(core.ports)
-      params:add_group("PASSTHROUGH", 10*port_amount + 2)
+      params:add_group("PASSTHROUGH", #port_param_items*port_amount + 2)
       
       for k, v in pairs(core.ports) do
           params:add_separator(v.port .. ': ' .. v.name)
@@ -117,8 +138,8 @@ function Passthrough.init()
             type = "number",
             id = "root_note_"..v.port,
             name = "Root",
-            minimum = 0,
-            maximum = 11,
+            min = 0,
+            max = 11,
             formatter = function(param) 
               return core.root_note_formatter(param:get())
             end,
@@ -141,16 +162,45 @@ function Passthrough.init()
             name = "CC limit",
             options = core.cc_limits
           }
-          end
-          params:add_separator("All devices")
           params:add {
-            type = "trigger",
-            id = "midi_panic",
-            name = "Midi panic",
-            action = function()
-              core.stop_all_notes()
-            end
+            type = "option",
+            id = "crow_notes_"..v.port,
+            name = "Crow note output",
+            options = core.crow_notes
           }
+          params:add {
+            type = "option",
+            id = "crow_cc_outputs_"..v.port,
+            name = "Crow cc output",
+            options = core.crow_cc_outputs
+          }
+          params:add {
+            type = "number",
+            id = "crow_cc_selection_a_"..v.port,
+            name = "Crow cc out a",
+            min = 1,
+            max = 128,
+            default = 1
+          }
+          params:add {
+            type = "number",
+            id = "crow_cc_selection_b_"..v.port,
+            name = "Crow cc out b",
+            min = 1,
+            max = 128,
+            default = 1
+          }
+      end
+      params:add_separator("All devices")
+      params:add {
+        type = "trigger",
+        id = "midi_panic",
+        name = "Midi panic",
+        action = function()
+          core.stop_all_notes()
+        end
+      }
+  
   end
   params:bang()
 end
