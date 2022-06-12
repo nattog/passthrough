@@ -20,7 +20,7 @@ passthrough is built as a mod and also as a library that can be added to individ
 
 - by leveraging callbacks at a script level, incoming midi events can be shared between norns scripts and external hardware
 
-- converting MIDI data to note/gate + cv by sending to crow
+- converting MIDI note data to cv/gate, and CC data to cv by sending to crow
 
 ## requirements
 
