@@ -8,8 +8,9 @@ pt.output_channels = {"Device src."}
 pt.toggles = {"no", "yes"}
 pt.scales = {}
 pt.cc_limits = {"Pass all", "Pass none"}
-pt.crow_notes = {"Off", "1+2", "3+4"}
-pt.crow_cc_outputs = {"Off", "1+2", "3+4"}
+local crow_output_options = {"Off", "1+2", "3+4"}
+pt.crow_notes = crow_output_options
+pt.crow_cc_outputs = crow_output_options
 
 local current_crow_note = nil
 
