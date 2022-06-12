@@ -6,6 +6,21 @@ local tab = require "tabutil"
 local api = {}
 local config = {}
 local state = {}
+local default_port_state = {
+  active = 1,
+  target = 1,
+  input_channel = 1,
+  output_channel = 1,
+  send_clock = 1,
+  quantize_midi = 1,
+  current_scale = 1,
+  root_note = 0,
+  cc_limit = 1,
+  crow_notes = 1,
+  crow_cc_outputs = 1,
+  crow_cc_selection_a = 1,
+  crow_cc_selection_b = 1,
+}
 
 -- MOD NORNS OVERRIDES --
 
@@ -116,26 +131,18 @@ function create_config()
 
   for k, v in pairs(core.ports) do
     if state[v.port] == nil then
-      state[v.port] = {
-        active = 1,
-        dev_port = v.port,
-        target = 1,
-        input_channel = 1,
-        output_channel = 1,
-        send_clock = 1,
-        quantize_midi = 1,
-        current_scale = 1,
-        root_note = 0,
-        cc_limit = 1,
-        crow_notes = 1,
-        crow_cc_outputs = 1,
-        crow_cc_selection_a = 1,
-        crow_cc_selection_b = 1,
-      }
+      state[v.port] = default_port_state
     else
-      state[v.port].dev_port = v.port
+        -- ensure that the state is up to date with changing api keys
+        for key, value in pairs(default_port_state) do
+          if state[v.port][key] == nil then
+            state[v.port][key] = value
+          end
+        end
     end
     
+    state[v.port].dev_port = v.port
+
     -- config creates an object for each passthru parameter
     config[k] = {
       active = {
@@ -209,7 +216,7 @@ function create_config()
           action = function()
             core.build_scale(state[k].root_note, state[k].current_scale, k)
           end
-        },
+      },
       cc_limit = {
         param_type = "option",
         id = "cc_limit",
