@@ -11,15 +11,20 @@ pt.cc_limits = {"Pass all", "Pass none"}
 local crow_output_options = {"Off", "1+2", "3+4"}
 pt.crow_notes = crow_output_options
 pt.crow_cc_outputs = crow_output_options
+pt.crow_cc_options = {"Off"}
+
+local crow_outputs = {"Off", "1", "2", "3", "4"}
 
 local current_crow_note = nil
 
+local current_crow_notes = {}
+
+for i = 1, 128 do table.insert(pt.crow_cc_options, i) end
 for i = 1, 10 do table.insert(pt.cc_limits, i) end
 local active_notes = {}
 local cc_limit_count = {}
 local cc_limit_init = {}
 
--- TODO: this is a mess and needs refactoring
 id_port_lookup = {} -- used to lookup midi port by id
 pt.port_connections = {} -- used to quickly grab table of targets for each port
 pt.ports = {} -- port settings, id, name, port, connect
@@ -34,12 +39,6 @@ local midi_event = _norns.midi.event
 _norns.midi.event = function(id, data)
   midi_event(id, data)
   pt.origin_event(id, data) -- passthrough
-end
-
--- UTIL --
-local function get_midi_channel_value(channel_param_value, msg_channel)
-    local channel_param = channel_param_value
-    return channel_param > 1 and (channel_param - 1) or msg_channel
 end
 
 -- SCALE SETUP --
@@ -60,7 +59,6 @@ local function cc_limit_send(msg, target, out_ch, cc_limit)
 
     if cc_limit == 1 then
         target:cc(msg.cc, msg.val, out_ch)
-
         return
     end
 
@@ -236,6 +234,49 @@ pt.handle_midi_data = function(msg, target, out_ch, quantize_midi, current_scale
     end
 end
 
+pt.crow_note_on(note, output)
+    current_crow_notes[output] = note
+    crow.output[output].volts = utils.n2v(note)
+end
+
+pt.crow_gate_on(output)
+    crow.output[output].action = "{to(5,0)}"
+    crow.output[output].execute()
+end
+
+pt.crow_gate_off(note, output)
+    if current_crow_notes[output] == nil or current_crow_notes[output] == note then
+        crow.output[output].action = "{to(0,0)}"
+        crow.output[output].execute()
+        current_crow_notes[output] = nil
+    end
+end
+
+pt.process_crow = function(msg, options)
+    -- 1 = {
+    --     note = false,
+    --     gate = false,
+    --     velocity = false,
+    --     cc = "off",
+    --     clock = false,
+    --   },
+    outputs, quantize_midi, current_scale = table.unpack(options)
+
+    for k, v in pairs(outputs) do
+        if msg.note ~= nil and v.note == true then
+            local note = quantize_midi == 2 and pt.quantize_note_data(msg.note, current_scale) or msg.note
+            if (msg.type == "note_on") then
+                pt.crow_note_on_data(note, k) -- note and output number
+            end
+        end
+    end
+    
+    if (crow_notes > 1) then
+        local note = (quantize_midi == 2 and msg.note ~= nil) and pt.quantize_note_data(msg.note, current_scale) or msg.note
+
+    end
+end
+
 pt.process_data_for_crow = function(msg, crow_notes, crow_cc_outputs, crow_cc_selection_a, crow_cc_selection_b, quantize_midi, current_scale)
     local note = (quantize_midi == 2 and msg.note ~= nil) and pt.quantize_note_data(msg.note, current_scale) or msg.note
     
@@ -301,8 +342,8 @@ pt.device_event = function(origin, device_target, input_channel, output_channel,
 
     local connections = pt.port_connections[origin] -- check this out to debug
 
-    local in_chan = get_midi_channel_value(input_channel, msg.ch)
-    local out_ch = get_midi_channel_value(output_channel, msg.ch)
+    local in_chan = utils.get_midi_channel_value(input_channel, msg.ch)
+    local out_ch = utils.get_midi_channel_value(output_channel, msg.ch)
     -- get scale stored in scales object
     local scale = pt.scales[origin]
 

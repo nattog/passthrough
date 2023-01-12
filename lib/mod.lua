@@ -22,6 +22,38 @@ local default_port_state = {
   crow_cc_selection_b = 1,
 }
 
+-- 
+local crow_config = {
+  crow_output1 = {
+    note = false,
+    gate = false,
+    velocity = false,
+    cc = "off",
+    clock = false,
+  },
+  crow_output2 = {
+    note = false,
+    gate = false,
+    velocity = false,
+    cc = "off",
+    clock = false,
+  },
+  crow_output3 = {
+    note = false,
+    gate = false,
+    velocity = false,
+    cc = "off",
+    clock = false,
+  },
+  crow_output4 = {
+    note = false,
+    gate = false,
+    velocity = false,
+    cc = "off",
+    clock = false,
+  }
+}
+
 -- MOD NORNS OVERRIDES --
 
 local midi_add = _norns.midi.add

@@ -11,6 +11,11 @@ utils.cc_cv = function(cc)
   return (cc/127) * 5
 end
 
+utils.get_midi_channel_value = function(channel_param_value, msg_channel)
+  local channel_param = channel_param_value
+  return channel_param > 1 and (channel_param - 1) or msg_channel
+end
+
 utils.table_find_value = function(t, condition)
   for k,v in pairs(t) do
     if condition(k, v) then
