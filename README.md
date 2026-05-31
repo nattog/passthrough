@@ -94,13 +94,9 @@ scripts can listen for midi events handled in passthrough and define their callb
   passthrough.user_event = user_midi_event
 ```
 
-## issues
+## future development
 
-raise any issues experienced with passthrough either in the v2 thread on [lines](https://llllllll.co/t/passthrough-v2/49397) or by logging a new issue on the [github repo](https://www.github.com/nattog/passthrough/issues).
-
-## contributing
-
-wishing to contribute a new feature or change? github pull requests are welcome.
+no additional features or releases are planned for passthrough. pull requests are closed to external contributors as of june 2026.
 
 ## version history
 
